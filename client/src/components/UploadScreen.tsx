@@ -84,7 +84,10 @@ export default function UploadScreen({ file, department, onFileChange, setDepart
           <label className="block text-sm font-bold text-white/80 mb-2 ml-1">Major / Department</label>
           <select value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full p-4 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-[#0046FF] outline-none transition-all font-bold text-white">
             <option value="CE" className="text-black">Civil Engineering (CE)</option>
-            <option value="CSE" className="text-black">Computer Science (CSE)</option>
+            <option value="CSE" className="text-black">Computer Science &amp; Engineering (CSE)</option>
+            <option value="EE" className="text-black">Electrical Engineering (EE)</option>
+            <option value="MAE" className="text-black">Mechanical &amp; Aerospace Engineering (MAE)</option>
+            <option value="IE" className="text-black">Industrial Engineering (IE)</option>
           </select>
         </div>
 
