@@ -44,10 +44,42 @@ def is_course_eligible(course, completed, course_map):
                         return False
     return True
 
+def expand_completed_with_prereqs(normalized_completed, course_map):
+    """
+    Transitively expand the completed set: if you passed a course, you must have
+    satisfied its prerequisites too (directly or transitively).
+
+    Example: student has MATH 2425 (Calc II) on transcript.
+      MATH 2425 requires MATH 1426 → add MATH 1426 as implied completed.
+      MATH 1426 requires MATH 1402 → add MATH 1402 as implied completed.
+      MATH 1402 requires MATH 1302 → add MATH 1302 as implied completed.
+    Result: Pre-Calc and Algebra no longer appear as eligible recommendations.
+    """
+    expanded = set(normalized_completed)
+    changed = True
+    while changed:
+        changed = False
+        for code in list(expanded):
+            course = course_map.get(code)
+            if not course:
+                continue
+            prereqs = course.get('Pre_Requisites', '').strip()
+            if prereqs and prereqs.lower() != 'none':
+                for p in [normalize_code(x) for x in prereqs.split(',') if x.strip()]:
+                    if p not in expanded:
+                        expanded.add(p)
+                        changed = True
+    return expanded
+
+
 def filter_eligible_courses_unique(all_courses, completed_courses):
     normalized_completed = set(normalize_code(c) for c in completed_courses)
-    eligible = dict()
     course_map = {normalize_code(c['Course_Num']): c for c in all_courses}
+
+    # Expand completed set: infer all implied prerequisites from transcript courses
+    normalized_completed = expand_completed_with_prereqs(normalized_completed, course_map)
+
+    eligible = dict()
     for course in all_courses:
         c_id = normalize_code(course['Course_Num'])
         if c_id in normalized_completed or c_id in eligible:
@@ -75,7 +107,10 @@ def get_professor_offerings_for_course(course_code):
     cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
     tables = [row[0] for row in cur.fetchall() if not row[0].startswith('sqlite')] # skip any sqlite internal tables
     offerings = []
-    subj, num = course_code.split()
+    parts = course_code.split()
+    if len(parts) != 2:
+        return []  # skip elective placeholders like "CE 43XX", "HIST 13XX", "LPC XXXX"
+    subj, num = parts
     for tbl in tables:
         safe_tbl = f'"{tbl}"' if ('-' in tbl or ' ' in tbl) else tbl
         try:
