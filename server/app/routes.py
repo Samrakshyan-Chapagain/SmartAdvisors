@@ -19,88 +19,163 @@ from .scripts.parse_transcript import extract_all_courses
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-# --- IMPROVED SCORING ALGORITHM ---
+# --- SCORING ALGORITHM ---
 def calculate_match_score(professor_obj, user_prefs):
     """
-    Sophisticated scoring based on Rating, Difficulty, and Tags.
+    Score a professor against the student's preferences.
+
+    Signals used:
+      - quality_rating (0–5):  primary base score
+      - would_take_again (%):  strong trust signal, boosts/damps base
+      - total_ratings (count): confidence multiplier — more reviews = more reliable
+      - difficulty_rating:     used when clearGrading preference is set
+      - tags:                  matched against actual RMP tag strings from DB
     """
     if not professor_obj:
         return 0.0
-    
-    # 1. BASELINE: Start with the Quality Rating (0 - 5)
+
+    # ── 1. BASE: quality rating ──────────────────────────────────────────────
     try:
         base_score = float(professor_obj.rating) if professor_obj.rating else 2.5
-    except:
+    except Exception:
         base_score = 2.5
-        
+
+    # ── 2. TRUST BOOST: would_take_again ────────────────────────────────────
+    # "84%" → 0.84, "N/A" or missing → ignored
+    try:
+        wta_raw = str(professor_obj.would_take_again or "").strip().replace('%', '')
+        wta = float(wta_raw) / 100.0 if wta_raw and wta_raw != 'N/A' else None
+    except Exception:
+        wta = None
+
+    # Strong signal: if most students would retake this prof, that matters
+    # regardless of preferences.  Range: -0.5 (very low WTA) to +0.5 (very high)
+    if wta is not None:
+        if wta >= 0.85:
+            base_score += 0.5
+        elif wta >= 0.70:
+            base_score += 0.25
+        elif wta <= 0.35:
+            base_score -= 0.5
+        elif wta <= 0.50:
+            base_score -= 0.25
+
+    # ── 3. CONFIDENCE WEIGHT based on review count ──────────────────────────
+    # Fewer reviews → regress score toward 2.5 (uncertain)
+    try:
+        total = int(professor_obj.total_ratings) if professor_obj.total_ratings else 0
+    except Exception:
+        total = 0
+
+    if total == 0:
+        # No data at all — pull strongly toward neutral
+        base_score = 0.5 * base_score + 0.5 * 2.5
+    elif total < 5:
+        base_score = 0.75 * base_score + 0.25 * 2.5
+    elif total < 15:
+        base_score = 0.88 * base_score + 0.12 * 2.5
+    # 15+ reviews: use score as-is
+
     score = base_score
-    
-    # Get Data safely
+
+    # ── 4. DIFFICULTY ────────────────────────────────────────────────────────
     try:
         difficulty = float(professor_obj.difficulty) if professor_obj.difficulty else 3.0
-    except:
+    except Exception:
         difficulty = 3.0
 
+    # ── 5. TAGS (lowercased) ─────────────────────────────────────────────────
+    # NOTE: actual tag strings from DB (verified):
+    #   'extra credit', 'clear grading criteria', 'gives good feedback',
+    #   'caring', 'accessible outside class', 'respected', 'inspirational',
+    #   'amazing lectures', 'lecture heavy', 'group projects', 'hilarious',
+    #   'would take again', 'online savvy', 'graded by few things',
+    #   'tests? not many', 'participation matters', 'get ready to read',
+    #   'test heavy', 'tests are tough', 'tough grader', 'lots of homework',
+    #   'so many papers', "skip class? you won't pass.", 'beware of pop quizzes'
     try:
-        tags_str = str(professor_obj.tags).lower() if professor_obj.tags else ""
-    except:
-        tags_str = ""
-    
-    # --- 2. LOGIC APPLICATION ---
+        tags = str(professor_obj.tags).lower() if professor_obj.tags else ""
+    except Exception:
+        tags = ""
 
-    # A. EASY GRADER LOGIC
+    bonus = 0.0  # accumulate preference-driven bonus/penalty separately
+
+    # A. EXTRA CREDIT
     if user_prefs.get('extraCredit'):
-        if "extra credit" in tags_str:
-            score += 1.0
+        if 'extra credit' in tags:
+            bonus += 1.0
 
-    if user_prefs.get('easyGrader') or user_prefs.get('clearGrading'):
-        # Bonus for low difficulty (1.0 difficulty = +2.0 boost)
-        difficulty_bonus = (5.0 - difficulty) * 0.5 
-        score += difficulty_bonus
-        
-        if any(t in tags_str for t in ['easy grader', 'clear grading', 'graded by few things']):
-            score += 1.0
-        if any(t in tags_str for t in ['tough grader', 'hard grader']):
-            score -= 1.5
+    # B. CLEAR / EASY GRADING
+    if user_prefs.get('clearGrading'):
+        # Reward low difficulty (linear: diff=1 → +1.6, diff=3 → +0.8, diff=5 → 0)
+        bonus += (5.0 - difficulty) * 0.4
+        if 'clear grading criteria' in tags:
+            bonus += 1.0
+        if 'graded by few things' in tags:
+            bonus += 0.8
+        if 'tests? not many' in tags:
+            bonus += 0.5
+        if 'tough grader' in tags:
+            bonus -= 1.5
 
-    # B. TEACHING QUALITY
-    if user_prefs.get('caring') or user_prefs.get('goodFeedback'):
-        if any(t in tags_str for t in ['caring', 'respected', 'inspirational', 'accessible', 'good feedback']):
-            score += 1.2
-    
-    # C. LEARNING STYLE
+    # C. GOOD FEEDBACK
+    if user_prefs.get('goodFeedback'):
+        if 'gives good feedback' in tags:
+            bonus += 1.5
+        if 'inspirational' in tags:
+            bonus += 0.5
+
+    # D. CARING / ACCESSIBLE
+    if user_prefs.get('caring'):
+        if 'caring' in tags:
+            bonus += 1.2
+        if 'accessible outside class' in tags:
+            bonus += 1.0
+        if 'respected' in tags:
+            bonus += 0.6
+        if 'inspirational' in tags:
+            bonus += 0.4
+
+    # E. LECTURE QUALITY
     if user_prefs.get('lectureHeavy'):
-        if "amazing lectures" in tags_str:
-            score += 1.5
-        elif "lecture heavy" in tags_str:
-            score += 0.5 
-    
+        if 'amazing lectures' in tags:
+            bonus += 1.5
+        elif 'lecture heavy' in tags:
+            bonus += 0.3   # indicates lecture-style, not necessarily amazing
+
+    # F. GROUP PROJECTS  (positive signal only — no hidden penalty for not picking)
     if user_prefs.get('groupProjects'):
-        if "group projects" in tags_str:
-            score += 1.0
-    else:
-        # User dislikes groups (default assumption)
-        if "group projects" in tags_str:
-            score -= 0.5
+        if 'group projects' in tags:
+            bonus += 1.0
 
-    # D. "DEAL BREAKERS"
-    if not user_prefs.get('testHeavy'):
-        if any(t in tags_str for t in ['test heavy', 'tests are tough']):
-            score -= 1.5 
+    # ── 6. DEAL-BREAKER PENALTIES ─────────────────────────────────────────────
+    # Keys are "avoidX" — only penalise when the student explicitly flagged it.
+    # Default (unset) = neutral, no hidden penalty.
 
-    if not user_prefs.get('homeworkHeavy'):
-        if any(t in tags_str for t in ['lots of homework', 'so many papers']):
-            score -= 1.0
+    if user_prefs.get('avoidTestHeavy'):
+        if 'test heavy' in tags or 'tests are tough' in tags:
+            bonus -= 1.5
 
-    if not user_prefs.get('strictAttendance'):
-        if any(t in tags_str for t in ['attendance mandatory', 'skip class']):
-            score -= 1.0
+    if user_prefs.get('avoidHomeworkHeavy'):
+        if 'lots of homework' in tags or 'so many papers' in tags:
+            bonus -= 1.0
+        if 'get ready to read' in tags:
+            bonus -= 0.5
 
-    if not user_prefs.get('popQuizzes'):
-        if "pop quizzes" in tags_str:
-            score -= 2.0 
+    if user_prefs.get('avoidStrictAttendance'):
+        if "skip class? you won't pass." in tags:
+            bonus -= 1.2
+        if 'participation matters' in tags:
+            bonus -= 0.5
 
-    return round(score, 1)
+    if user_prefs.get('avoidPopQuizzes'):
+        if 'beware of pop quizzes' in tags:
+            bonus -= 2.0
+
+    # ── 7. FINAL SCORE ────────────────────────────────────────────────────────
+    # Apply the confidence-adjusted base + preference bonuses
+    final = score + bonus
+    return round(final, 1)
 
 
 @api_bp.route('/parse-transcript', methods=['POST'])
@@ -237,15 +312,32 @@ def get_recommendations():
                                     elif diff_val > 3.8: final_difficulty = "Hard"
                                 except: pass
 
+                            final_wta = None
+                            if db_prof and db_prof.would_take_again:
+                                wta_str = str(db_prof.would_take_again).strip()
+                                try:
+                                    wta_num = float(wta_str.replace('%', ''))
+                                    if wta_str and wta_str not in ('N/A', '0%') and wta_num > 0:
+                                        final_wta = wta_str
+                                except Exception:
+                                    pass
+
+                            final_review_count = 0
+                            if db_prof and db_prof.total_ratings:
+                                try: final_review_count = int(db_prof.total_ratings)
+                                except: pass
+
                             professors_list.append({
                                 'id': str(len(professors_list)),
                                 'name': prof_name,
                                 'rating': final_rating,
                                 'difficulty': final_difficulty,
                                 'matchScore': match_score,
+                                'wouldTakeAgain': final_wta,
                                 'schedule': f"{offer.get('year','')} {offer.get('semester','')}".strip(),
                                 'tags': final_tags,
-                                'reviewCount': 0, 'classSize': 'Unknown', 'assessmentType': 'Unknown', 'attendance': 'Unknown'
+                                'reviewCount': final_review_count,
+                                'classSize': 'Unknown', 'assessmentType': 'Unknown', 'attendance': 'Unknown'
                             })
                         except Exception as inner_e:
                             print(f"Skipping prof {prof_name}: {inner_e}", file=sys.stderr)

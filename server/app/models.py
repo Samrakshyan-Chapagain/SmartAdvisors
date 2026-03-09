@@ -20,7 +20,9 @@ class Professor(db.Model):
     
     # "When I say .difficulty, read the 'difficulty_rating' column"
     difficulty = db.Column('difficulty_rating', db.Float)
-    
+
+    total_ratings = db.Column('total_ratings', db.Integer)
+    would_take_again = db.Column('would_take_again', db.String(10))
     tags = db.Column(db.String(512))
 
     def __repr__(self):

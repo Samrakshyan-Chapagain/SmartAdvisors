@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Star, TrendingUp, BookOpen, Loader2, Sparkles, ArrowLeft, Trophy, Download, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Star, TrendingUp, BookOpen, Loader2, Sparkles, ArrowLeft, Trophy, Download, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 type PreferencesType = {
@@ -9,10 +9,10 @@ type PreferencesType = {
   caring: boolean;
   lectureHeavy: boolean;
   groupProjects: boolean;
-  testHeavy: boolean;
-  homeworkHeavy: boolean;
-  strictAttendance: boolean;
-  popQuizzes: boolean;
+  avoidTestHeavy: boolean;
+  avoidHomeworkHeavy: boolean;
+  avoidStrictAttendance: boolean;
+  avoidPopQuizzes: boolean;
 };
 
 interface Professor {
@@ -22,11 +22,12 @@ interface Professor {
   reviewCount: number;
   difficulty: string;
   matchScore: number;
+  wouldTakeAgain?: string | null;
   schedule: string;
   classSize: string;
   assessmentType: string;
   attendance: string;
-  tags: string[]; 
+  tags: string[];
 }
 
 interface ClassData {
@@ -71,9 +72,9 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.1 }}
-      className="flex-shrink-0 w-96 bg-black/20 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 overflow-hidden flex flex-col max-h-[80vh] print-card"
+      className="flex-shrink-0 w-96 bg-white/[0.04] backdrop-blur-md rounded-3xl shadow-xl border border-white/15 overflow-hidden flex flex-col max-h-[80vh] print-card"
     >
-      <div className="px-6 py-5 border-b border-white/10 flex-shrink-0" style={{ background: `${accentColor}15` }}>
+      <div className="px-6 py-5 border-b border-white/15 flex-shrink-0" style={{ background: `${accentColor}20` }}>
         <div className="flex justify-between items-center mb-1">
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-bold text-white">{classData.courseCode}</h3>
@@ -106,8 +107,8 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
               className={`
                 relative rounded-2xl p-5 transition-all group border
                 ${isBestMatch
-                  ? 'bg-[#FF8040]/10 border-[#FF8040] shadow-lg shadow-[#FF8040]/10 z-10 scale-[1.02]'
-                  : 'bg-[#0046FF]/10 border-white/5 hover:border-[#0046FF] hover:bg-[#0046FF]/20'
+                  ? 'bg-[#FF8040]/15 border-[#FF8040]/70 shadow-lg shadow-[#FF8040]/15 z-10 scale-[1.02]'
+                  : 'bg-white/[0.06] border-white/15 hover:border-[#0046FF]/60 hover:bg-[#0046FF]/15'
                 }
               `}
             >
@@ -121,7 +122,7 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
                   <h4 className="font-bold text-white text-lg leading-tight mb-2 truncate" title={professor.name}>
                     {professor.name}
                   </h4>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-sm font-bold border ${professor.rating > 0 ? 'bg-[#FF8040]/20 text-[#FF8040] border-[#FF8040]/30' : 'bg-white/10 text-white/40 border-white/10'}`}>
                       <Star className={`w-3.5 h-3.5 ${professor.rating > 0 ? 'fill-[#FF8040] text-[#FF8040]' : 'text-gray-500'}`} />
                       {professor.rating > 0 ? professor.rating : "N/A"}
@@ -129,6 +130,11 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
                     <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold border ${getDifficultyColor(professor.difficulty)}`}>
                       Diff: {professor.difficulty}
                     </span>
+                    {professor.wouldTakeAgain && (
+                      <span className="px-2 py-0.5 rounded-lg text-xs font-semibold border bg-emerald-900/30 text-emerald-300 border-emerald-800/50">
+                        {professor.wouldTakeAgain} retake
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -155,6 +161,11 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [electiveClasses, setElectiveClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const electivesRef = useRef<HTMLDivElement>(null);
+
+  const scrollToElectives = () => {
+    electivesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     if (userData?.recommendations) {
@@ -403,24 +414,66 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
         </p>
       </motion.div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <div className="bg-black/20 backdrop-blur-md p-6 rounded-2xl border border-white/10 shadow-lg flex items-center justify-between">
-              <div>
-                  <p className="text-xs font-bold text-white/60 uppercase tracking-wider">Courses</p>
-                  <p className="text-3xl font-bold text-white">{totalCourses}</p>
-              </div>
-              <div className="bg-white/10 p-3 rounded-full text-white"><BookOpen className="w-6 h-6" /></div>
-          </div>
-
-          <div className="bg-black/20 backdrop-blur-md p-6 rounded-2xl border border-white/10 shadow-lg flex items-center justify-between">
-              <div>
-                  <p className="text-xs font-bold text-white/60 uppercase tracking-wider">Professors</p>
-                  <p className="text-3xl font-bold text-white">{totalProfessors}</p>
-              </div>
-              <div className="bg-white/10 p-3 rounded-full text-white"><TrendingUp className="w-6 h-6" /></div>
-          </div>
+      {/* Compact Stats Bar */}
+      <div className="flex flex-wrap items-center gap-3 mb-8 text-sm">
+          <span className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/70 font-semibold px-3 py-1.5 rounded-full">
+            <BookOpen className="w-3.5 h-3.5" /> {totalCourses} courses
+          </span>
+          <span className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/70 font-semibold px-3 py-1.5 rounded-full">
+            <TrendingUp className="w-3.5 h-3.5" /> {totalProfessors} professors
+          </span>
+          {userData.stats && (
+            <>
+              <span className="flex items-center gap-1.5 bg-[#0046FF]/10 border border-[#0046FF]/20 text-blue-300 font-semibold px-3 py-1.5 rounded-full">
+                {userData.stats.completedRequiredCourses}/{userData.stats.totalRequiredCourses} required done
+              </span>
+              <span className="flex items-center gap-1.5 bg-[#FF8040]/10 border border-[#FF8040]/20 text-orange-300 font-semibold px-3 py-1.5 rounded-full">
+                {userData.stats.completedElectives}/{userData.stats.totalElectiveSlots} electives done
+              </span>
+              <span className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/50 font-semibold px-3 py-1.5 rounded-full">
+                {userData.stats.completedRequiredHours + userData.stats.completedElectiveHours}/{userData.stats.totalRequiredHours + userData.stats.totalElectiveHours} credit hours
+              </span>
+            </>
+          )}
       </div>
+
+      {/* ── ELECTIVES JUMP BANNER (at top, before everything) ── */}
+      {visibleElectives.length > 0 && (
+        <motion.button
+          onClick={scrollToElectives}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          className="w-full mb-10 rounded-2xl border border-[#FF8040]/30 bg-[#FF8040]/10 hover:bg-[#FF8040]/15 transition-all cursor-pointer focus:outline-none no-print"
+        >
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-[#FF8040] p-2.5 rounded-xl flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="text-white font-bold text-base">
+                  You also have{' '}
+                  <span className="text-[#FF8040]">{visibleElectives.length} elective courses</span>{' '}
+                  to choose from
+                </p>
+                {userData.stats && userData.stats.remainingElectiveSlots > 0 && (
+                  <p className="text-white/50 text-sm mt-0.5">
+                    Pick <span className="text-[#FF8040] font-bold">{userData.stats.remainingElectiveSlots}</span> more to complete your elective requirement
+                  </p>
+                )}
+                {userData.stats && userData.stats.remainingElectiveSlots === 0 && (
+                  <p className="text-emerald-400 text-sm font-medium mt-0.5">All elective slots filled — explore options below</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-[#FF8040] font-bold text-sm flex-shrink-0">
+              Jump to electives <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+        </motion.button>
+      )}
 
       {visibleClasses.length === 0 && visibleElectives.length === 0 ? (
           <div className="text-center py-20">
@@ -428,24 +481,22 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
           </div>
       ) : (
         <>
-          {/* REQUIRED COURSES SECTION */}
+          {/* ── REQUIRED COURSES ── */}
           {visibleClasses.length > 0 && (
             <div className="mb-14">
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3 mb-1">
                 <div className="bg-[#0046FF] p-2 rounded-xl">
                   <BookOpen className="w-5 h-5 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-white">Required Courses</h3>
                 <span className="text-sm font-bold text-white/50 bg-white/10 px-3 py-1 rounded-full">{visibleClasses.length} courses</span>
               </div>
+              <p className="text-white/40 text-sm ml-12 mb-1">
+                Based on your transcript, these are the required courses you're eligible to take next.
+              </p>
               {userData.stats && (
-                <p className="text-white/50 text-sm ml-12 mb-1">
+                <p className="text-white/50 text-sm ml-12 mb-4">
                   Completed <span className="text-white font-bold">{userData.stats.completedRequiredCourses}/{userData.stats.totalRequiredCourses}</span> required courses ({userData.stats.completedRequiredHours}/{userData.stats.totalRequiredHours} credit hours)
-                </p>
-              )}
-              {visibleElectives.length > 0 && (
-                <p className="text-[#FF8040]/60 text-sm ml-12 mb-6 flex items-center gap-1">
-                  <ChevronDown className="w-3.5 h-3.5" /> Elective options available below
                 </p>
               )}
               <div className="overflow-x-auto pb-6 no-scrollbar">
@@ -455,31 +506,37 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
                   ))}
                 </div>
               </div>
-              <div className="text-center text-sm text-white/40 font-bold">
-                Scroll right for more classes →
-              </div>
+              <p className="text-center text-xs text-white/30 font-medium mt-1">Scroll right to see all required courses →</p>
             </div>
           )}
 
-          {/* ELECTIVE COURSES SECTION */}
+          {/* ── ELECTIVE COURSES ── */}
           {visibleElectives.length > 0 && (
-            <div className="mb-10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-[#FF8040] p-2 rounded-xl">
-                  <Sparkles className="w-5 h-5 text-white" />
+            <div className="mb-10" ref={electivesRef} style={{ scrollMarginTop: '5rem' }}>
+              {/* Big prominent header */}
+              <div className="rounded-2xl bg-[#FF8040]/10 border border-[#FF8040]/25 px-6 py-5 mb-6">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="bg-[#FF8040] p-2 rounded-xl">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">Elective Options</h3>
+                  <span className="text-sm font-bold text-[#FF8040] bg-[#FF8040]/20 border border-[#FF8040]/30 px-3 py-1 rounded-full">{visibleElectives.length} courses</span>
                 </div>
-                <h3 className="text-2xl font-bold text-white">Elective Options</h3>
-                <span className="text-sm font-bold text-white/50 bg-white/10 px-3 py-1 rounded-full">{visibleElectives.length} courses</span>
-              </div>
-              {userData.stats && (
-                <p className="text-white/50 text-sm ml-12 mb-6">
-                  Completed <span className="text-white font-bold">{userData.stats.completedElectives}/{userData.stats.totalElectiveSlots}</span> elective slots ({userData.stats.completedElectiveHours}/{userData.stats.totalElectiveHours} credit hours)
-                  {userData.stats.remainingElectiveSlots > 0
-                    ? <> · Choose <span className="text-[#FF8040] font-bold">{userData.stats.remainingElectiveSlots}</span> more from these options</>
-                    : <> · <span className="text-emerald-400 font-bold">All elective slots filled!</span></>
-                  }
+                <p className="text-white/40 text-sm ml-12 mb-1">
+                  Based on your transcript, these are the elective courses you're eligible to take.
                 </p>
-              )}
+                {userData.stats && (
+                  <p className="text-white/50 text-sm ml-12">
+                    You've completed <span className="text-white font-bold">{userData.stats.completedElectives}</span> of <span className="text-white font-bold">{userData.stats.totalElectiveSlots}</span> elective slots
+                    {userData.stats.remainingElectiveSlots > 0 ? (
+                      <> — choose <span className="text-[#FF8040] font-bold">{userData.stats.remainingElectiveSlots}</span> more from the options below</>
+                    ) : (
+                      <> · <span className="text-emerald-400 font-bold">All elective slots filled!</span></>
+                    )}
+                  </p>
+                )}
+              </div>
+
               <div className="overflow-x-auto pb-6 no-scrollbar">
                 <div className="flex gap-8 min-w-min px-2 print-horizontal-container">
                   {visibleElectives.map((classData, index) => (
@@ -487,9 +544,7 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
                   ))}
                 </div>
               </div>
-              <div className="text-center text-sm text-white/40 font-bold">
-                Scroll right for more electives →
-              </div>
+              <p className="text-center text-xs text-white/30 font-medium mt-1">Scroll right to see all elective options →</p>
             </div>
           )}
         </>

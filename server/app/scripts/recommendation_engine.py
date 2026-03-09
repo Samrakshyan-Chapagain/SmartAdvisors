@@ -94,6 +94,17 @@ def filter_eligible_courses_unique(all_courses, completed_courses):
                         co_course = course_map[ccode]
                         if is_course_eligible(co_course, normalized_completed, course_map):
                             eligible[ccode] = co_course
+
+    # Either/or rules: ENGR 1101 and UNIV are alternatives — only need one
+    completed_univ = any(c.startswith('UNIV') for c in normalized_completed)
+    completed_engr1101 = 'ENGR 1101' in normalized_completed
+    if completed_univ:
+        eligible.pop('ENGR 1101', None)
+    if completed_engr1101:
+        for code in list(eligible):
+            if code.startswith('UNIV'):
+                eligible.pop(code, None)
+
     return eligible
 
 def get_professor_offerings_for_course(course_code):
