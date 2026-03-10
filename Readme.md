@@ -57,64 +57,142 @@ SmartAdvisors/
 
 ---
 
-## Getting Started (Local Setup)
+## Running Locally (Step-by-Step)
 
-### Prerequisites
-- **Git**
-- **Node.js 18+** and npm
-- **Python 3.10+**
+Follow these steps exactly. You need two terminals open — one for the frontend, one for the backend.
 
-### 1. Clone the Repo
+---
+
+### Before You Start — Install These Once
+
+If you don't have these already, install them first:
+
+- **Git** — https://git-scm.com/downloads
+- **Node.js 18+** — https://nodejs.org (choose the LTS version)
+- **Python 3.10+** — https://www.python.org/downloads
+
+To check if you have them, run:
+```bash
+git --version
+node --version
+python3 --version
+```
+
+---
+
+### Step 1 — Clone the Repo
 
 ```bash
 git clone https://github.com/acmuta/SmartAdvisors.git
 cd SmartAdvisors
 ```
 
-### 2. Frontend Setup
+> If you already cloned it before, just pull the latest:
+> ```bash
+> git pull
+> ```
+
+---
+
+### Step 2 — Create the Frontend `.env` File
+
+This file holds the Google Sign-In key. It is **not** in the repo (for security), so you have to create it manually. **You only do this once.**
+
+1. Go into the `client` folder
+2. Create a new file called `.env` (exactly that name, with the dot)
+3. Paste this exact line into it (ask the team lead on Discord for the Client ID):
+
+```
+VITE_GOOGLE_CLIENT_ID=your-google-client-id-here.apps.googleusercontent.com
+```
+
+**Mac/Linux shortcut** (replace the ID with the real one):
+```bash
+echo "VITE_GOOGLE_CLIENT_ID=your-client-id-here.apps.googleusercontent.com" > client/.env
+```
+
+**Windows shortcut** (in Command Prompt):
+```cmd
+echo VITE_GOOGLE_CLIENT_ID=your-client-id-here.apps.googleusercontent.com > client\.env
+```
+
+---
+
+### Step 3 — Start the Frontend
+
+Open **Terminal 1** and run:
 
 ```bash
 cd client
 npm install
-```
-
-Then create a file called `.env` inside the `client/` folder:
-
-```
-client/.env
-```
-
-Add this line to it (ask the team lead for the actual Client ID):
-
-```
-VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-```
-
-> **Note:** The `.env` file is gitignored and never committed. Each developer needs their own local copy. The Google OAuth Client ID is free — see `.env.example` for instructions on creating your own.
-
-Then start the dev server:
-
-```bash
 npm run dev
 ```
 
-Frontend runs at **http://localhost:5173**
+You should see something like:
+```
+  VITE v5.x.x  ready in ...ms
+  ➜  Local:   http://localhost:5173/
+```
 
-### 3. Backend Setup
+Open **http://localhost:5173** in your browser. Leave this terminal running.
 
-From the repo root or the `server/` directory:
+---
 
+### Step 4 — Start the Backend
+
+Open **Terminal 2** and run:
+
+**Mac/Linux:**
 ```bash
 cd server
 python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r ../requirements.txt
 python3 run.py
 ```
 
-Backend runs at **http://127.0.0.1:8000**
+**Windows:**
+```cmd
+cd server
+python -m venv venv
+venv\Scripts\activate
+pip install -r ..\requirements.txt
+python run.py
+```
 
-> **Note:** No backend `.env` file is needed for local development. Database paths are auto-detected.
+You should see:
+```
+ * Running on http://127.0.0.1:8000
+```
+
+Leave this terminal running too.
+
+---
+
+### Step 5 — You're Done
+
+With both terminals running, go to **http://localhost:5173** in your browser. The app should be fully working.
+
+> **Note:** You need both the frontend (port 5173) and backend (port 8000) running at the same time for the app to work.
+
+---
+
+### Next Time You Work on It
+
+You don't need to redo everything. Just:
+
+**Terminal 1:**
+```bash
+cd client
+npm run dev
+```
+
+**Terminal 2:**
+```bash
+cd server
+source venv/bin/activate     # Windows: venv\Scripts\activate
+python3 run.py
+```
 
 ---
 
