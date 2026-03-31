@@ -21,7 +21,10 @@ export const COLLEGES: Record<string, CollegeInfo> = {
   engineering: {
     name: 'College of Engineering',
     degrees: [
+      { code: 'AREN', name: 'Architectural Engineering' },
+      { code: 'BE', name: 'Bioengineering' },
       { code: 'CE', name: 'Civil Engineering' },
+      { code: 'CM', name: 'Construction Management' },
       { code: 'CSE', name: 'Computer Science' },
       { code: 'EE', name: 'Electrical Engineering' },
       { code: 'IE', name: 'Industrial Engineering' },
