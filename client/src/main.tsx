@@ -4,12 +4,16 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import App from './App.tsx';
 import './index.css';
 
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
+const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={clientId}>
-      <App />
-    </GoogleOAuthProvider>
+    {clientId ? (
+      <GoogleOAuthProvider clientId={clientId}>
+        <App googleOAuthEnabled />
+      </GoogleOAuthProvider>
+    ) : (
+      <App googleOAuthEnabled={false} />
+    )}
   </StrictMode>
 );

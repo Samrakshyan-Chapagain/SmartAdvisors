@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import Layout from './components/Layout';
 import DisclaimerModal from './components/DisclaimerModal';
 import WelcomePage from './components/WelcomePage';
-import LoginPage, { GoogleUser } from './components/LoginPage';
+import SignInOverlay from './components/SignInOverlay';
+import type { GoogleUser } from './components/SignInOverlay';
 import UploadScreen from './components/UploadScreen';
 import TranscriptReview from './components/TranscriptReview';
 import PreferenceForm, { Preferences } from './components/PreferenceForm';
@@ -37,7 +39,7 @@ interface ApiRecommendationResponse {
   Returning: Sign In → 4 = WelcomeBack dashboard → SemesterPlanView
 */
 
-function App() {
+function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [step, setStep] = useState<number>(0);
   const [showLogin, setShowLogin] = useState(false);
@@ -51,9 +53,10 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [degreePlan, setDegreePlan] = useState<any>(null);
   const [isReturningUser, setIsReturningUser] = useState(false);
+  const [enteredViaOverlay, setEnteredViaOverlay] = useState(false);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [step, showLogin]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,56 +226,61 @@ function App() {
     return <DisclaimerModal onAccept={() => setDisclaimerAccepted(true)} />;
   }
 
-  // --- Login page (sub-state of step 0) ---
-  if (showLogin && step === 0) {
+  // --- Main step flow ---
+  if (step === 0) {
+    const handleLogin = (user: GoogleUser) => {
+      const savedRaw = localStorage.getItem(STORAGE_KEY(user.email));
+      if (savedRaw) {
+        try {
+          const saved = JSON.parse(savedRaw);
+          setCompletedCourses(saved.completedCourses || []);
+          setDepartment(saved.department || '');
+          setDegreePlan(saved.degreePlan);
+          setGoogleUser(user);
+          setIsLoggedIn(true);
+          setIsReturningUser(true);
+          setShowLogin(false);
+          setStep(4);
+          return;
+        } catch {
+          localStorage.removeItem(STORAGE_KEY(user.email));
+        }
+      }
+      setGoogleUser(user);
+      setIsLoggedIn(true);
+      setShowLogin(false);
+      setStep(1);
+    };
+
     return (
-      <Layout onLogoClick={handleLogoClick}>
-        <LoginPage
-          onGuestContinue={() => { setIsLoggedIn(false); setShowLogin(false); setStep(1); }}
-          onLogin={(user) => {
-            // Check for a previously saved plan for this user
-            const savedRaw = localStorage.getItem(STORAGE_KEY(user.email));
-            if (savedRaw) {
-              try {
-                const saved = JSON.parse(savedRaw);
-                setCompletedCourses(saved.completedCourses || []);
-                setDepartment(saved.department || '');
-                setDegreePlan(saved.degreePlan);
-                setGoogleUser(user);
-                setIsLoggedIn(true);
-                setIsReturningUser(true);
-                setShowLogin(false);
-                setStep(4);
-                return;
-              } catch {
-                // Corrupted saved data — clear it and fall through to normal flow
-                localStorage.removeItem(STORAGE_KEY(user.email));
-              }
-            }
-            setGoogleUser(user);
-            setIsLoggedIn(true);
-            setShowLogin(false);
-            setStep(1);
-          }}
-          onBack={() => setShowLogin(false)}
+      <>
+        <motion.div
+          animate={showLogin ? { scale: 0.97, opacity: 0 } : { scale: 1, opacity: 1 }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          style={{ pointerEvents: showLogin ? 'none' : undefined }}
+        >
+          <Layout onLogoClick={handleLogoClick} onSignIn={() => setShowLogin(true)}>
+            <WelcomePage
+              onGetStarted={() => { setIsLoggedIn(false); setEnteredViaOverlay(false); setStep(1); }}
+              onSignIn={() => setShowLogin(true)}
+            />
+          </Layout>
+        </motion.div>
+
+        <SignInOverlay
+          isVisible={showLogin}
+          googleOAuthEnabled={googleOAuthEnabled}
+          onLogin={handleLogin}
+          onGuestContinue={() => { setIsLoggedIn(false); setShowLogin(false); setEnteredViaOverlay(true); setStep(1); }}
+          onClose={() => setShowLogin(false)}
         />
-      </Layout>
+      </>
     );
   }
 
-  // --- Main step flow ---
-  if (step === 0) return (
-    <Layout onLogoClick={handleLogoClick}>
-      <WelcomePage
-        onGetStarted={() => { setIsLoggedIn(false); setStep(1); }}
-        onSignIn={() => setShowLogin(true)}
-      />
-    </Layout>
-  );
-
   if (step === 1) return (
     <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined}>
-      <UploadScreen file={file} department={department} onFileChange={handleFileChange} setDepartment={setDepartment} onNext={handleUploadAndParse} onBack={() => setStep(0)} isLoading={isLoading} />
+      <UploadScreen file={file} department={department} onFileChange={handleFileChange} setDepartment={setDepartment} onNext={handleUploadAndParse} onBack={() => { if (enteredViaOverlay) { setEnteredViaOverlay(false); setStep(0); setShowLogin(true); } else { setStep(0); } }} isLoading={isLoading} />
     </Layout>
   );
 

@@ -69,7 +69,13 @@ export default function UploadScreen({ file, department, onFileChange, setDepart
             : 'border-white/20 hover:border-[#FF8040] hover:bg-[#FF8040]/10'
           }`}
         >
-          <input type="file" accept=".pdf" onChange={onFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+          <input
+            type="file"
+            accept=".pdf"
+            onChange={onFileChange}
+            aria-label="Upload transcript PDF"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+          />
           <div className="flex flex-col items-center pointer-events-none">
             <div className={`p-4 rounded-full shadow-sm mb-3 transition-transform group-hover:scale-110 
               ${file ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white'}`}
@@ -102,11 +108,13 @@ export default function UploadScreen({ file, department, onFileChange, setDepart
         <div className="mb-8 text-left space-y-4">
           {/* College dropdown */}
           <div>
-            <label className="block text-sm font-bold text-white/80 mb-2 ml-1">College</label>
+            <label htmlFor="college-select" className="block text-sm font-bold text-white/80 mb-2 ml-1">College</label>
             <div className="relative">
               <select
+                id="college-select"
                 value={selectedCollege}
                 onChange={(e) => handleCollegeChange(e.target.value)}
+                aria-label="Select college"
                 className={`w-full p-4 pr-10 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-[#0046FF] outline-none transition-all font-bold appearance-none ${
                   selectedCollege ? 'text-white' : 'text-white/40'
                 }`}
@@ -129,11 +137,13 @@ export default function UploadScreen({ file, department, onFileChange, setDepart
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
               >
-                <label className="block text-sm font-bold text-white/80 mb-2 ml-1">Degree</label>
+                <label htmlFor="degree-select" className="block text-sm font-bold text-white/80 mb-2 ml-1">Degree</label>
                 <div className="relative">
                   <select
+                    id="degree-select"
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
+                    aria-label="Select degree"
                     className={`w-full p-4 pr-10 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-[#0046FF] outline-none transition-all font-bold appearance-none ${
                       department ? 'text-white' : 'text-white/40'
                     }`}

@@ -9,9 +9,45 @@ export interface GoogleUser {
 }
 
 interface LoginPageProps {
+  googleOAuthEnabled: boolean;
   onGuestContinue: () => void;
   onLogin: (user: GoogleUser) => void;
   onBack: () => void;
+}
+
+function GoogleSignInButton({ onLogin }: { onLogin: (user: GoogleUser) => void }) {
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const userInfo = await res.json();
+        onLogin({
+          name: userInfo.name,
+          email: userInfo.email,
+          picture: userInfo.picture,
+        });
+      } catch {
+        alert('Failed to get user info. Please try again.');
+      }
+    },
+    onError: () => {
+      alert('Google sign-in failed. Please try again.');
+    },
+  });
+
+  return (
+    <motion.button
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={() => googleLogin()}
+      className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm transition-colors"
+    >
+      <GoogleIcon />
+      Continue with Google
+    </motion.button>
+  );
 }
 
 function GitHubIcon() {
@@ -44,28 +80,7 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPageProps) {
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        const userInfo = await res.json();
-        onLogin({
-          name: userInfo.name,
-          email: userInfo.email,
-          picture: userInfo.picture,
-        });
-      } catch {
-        alert('Failed to get user info. Please try again.');
-      }
-    },
-    onError: () => {
-      alert('Google sign-in failed. Please try again.');
-    },
-  });
-
+export default function LoginPage({ googleOAuthEnabled, onGuestContinue, onLogin, onBack }: LoginPageProps) {
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <motion.div
@@ -98,15 +113,24 @@ export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPag
 
           {/* Google Sign-In (real) */}
           <div className="space-y-3 mb-6">
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => googleLogin()}
-              className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm transition-colors"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </motion.button>
+            {googleOAuthEnabled ? (
+              <GoogleSignInButton onLogin={onLogin} />
+            ) : (
+              <div>
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  disabled
+                  className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.04] text-white/30 font-semibold text-sm cursor-not-allowed"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </motion.button>
+                <p className="text-xs text-yellow-300/80 mt-2">
+                  Google sign-in is unavailable. Set VITE_GOOGLE_CLIENT_ID in your .env and restart Vite.
+                </p>
+              </div>
+            )}
 
             {/* GitHub and Microsoft — coming soon placeholders */}
             <motion.button
