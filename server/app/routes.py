@@ -342,6 +342,8 @@ def get_recommendations():
 
         # 3. LOGIC ENGINE
         all_courses = get_department_courses(department)
+        if not all_courses:
+            return jsonify({'error': f'No course data found for department "{department}". Please select a valid degree.'}), 400
         eligible = filter_eligible_courses_unique(all_courses, completed_courses)
 
         result = []
@@ -534,6 +536,8 @@ def degree_plan():
             return jsonify({'error': 'Department is required'}), 400
 
         all_courses = get_department_courses(department)
+        if not all_courses:
+            return jsonify({'error': f'No course data found for department "{department}". Please select a valid degree.'}), 400
         semesters = generate_degree_plan(
             all_courses,
             completed_courses,

@@ -343,9 +343,9 @@ def generate_degree_plan(
                         }
                         added = True
 
-    # Filter electives to only include user-chosen ones (if provided),
-    # or auto-cap to budget per group when not provided
-    if chosen_electives is not None:
+    # Filter electives to only include user-chosen ones (if provided and non-empty),
+    # or auto-cap to budget per group when not provided / empty
+    if chosen_electives is not None and len(chosen_electives) > 0:
         chosen_normalized = set(normalize_code(c) for c in chosen_electives)
         for code in list(remaining):
             course = remaining[code]
@@ -475,6 +475,8 @@ def generate_degree_plan(
             semester_hours = 0
 
             for code in eligible:
+                if code in semester_courses:
+                    continue  # already added as a corequisite
                 c = remaining[code]
                 hrs = get_credit_hours(c)
 
@@ -487,6 +489,15 @@ def generate_degree_plan(
                         coreq_hours += get_credit_hours(remaining[coreq])
                         coreq_codes.append(coreq)
 
+                # Also check reverse: if any course already in this semester
+                # lists this course as a corequisite, pair them together
+                for scheduled in list(semester_courses):
+                    for coreq in get_coreqs(remaining.get(scheduled, {})):
+                        if coreq in remaining and coreq not in semester_courses and coreq not in coreq_codes:
+                            if coreq == code or coreq in eligible:
+                                coreq_hours += get_credit_hours(remaining[coreq])
+                                coreq_codes.append(coreq)
+
                 total_add = hrs + coreq_hours
                 if semester_hours + total_add <= credits_per_semester:
                     semester_courses.append(code)
@@ -496,9 +507,12 @@ def generate_degree_plan(
                 if semester_hours >= credits_per_semester:
                     break
 
-            # If nothing was picked, force at least one
+            # If nothing was picked, force at least one (with its coreqs)
             if not semester_courses and eligible:
                 semester_courses.append(eligible[0])
+                for coreq in get_coreqs(remaining.get(eligible[0], {})):
+                    if coreq in remaining and coreq not in semester_courses:
+                        semester_courses.append(coreq)
 
         # Deduplicate while preserving order
         seen = set()
