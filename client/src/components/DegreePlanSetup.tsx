@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Calendar, Clock, Loader2, Check, Sparkles, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Calendar, Clock, Loader2, Check, Sparkles, AlertCircle, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProcessingOverlay from './ProcessingOverlay';
 
@@ -550,7 +550,7 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
 
             {eligibleCourses.length === 0 && remainingHours <= 0 && (
               <div className="text-center py-10">
-                <div className="text-5xl mb-4">🎓</div>
+                <GraduationCap className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
                 <p className="text-emerald-400 font-bold text-lg mb-2">You've completed all your degree courses!</p>
                 <p className="text-white/40 text-sm">There are no remaining courses to plan. Congratulations!</p>
               </div>
