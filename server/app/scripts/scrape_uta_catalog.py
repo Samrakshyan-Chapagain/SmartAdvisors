@@ -1,82 +1,85 @@
 #!/usr/bin/env python3
-"""
-UTA Catalog Course Scraper
-===========================
-Generates a degree plan CSV from UTA's online catalog.
-
-Usage:
-    python3 server/app/scripts/scrape_uta_catalog.py CSE
-    python3 server/app/scripts/scrape_uta_catalog.py EE
-    python3 server/app/scripts/scrape_uta_catalog.py MAE
-
-Output:
-    server/data/<DEPT> Degree Plan CSV.csv
-
-After running:
-    1. Open the output CSV
-    2. Mark elective courses by changing 'required' to 'elective' in the Requirement column
-    3. Reload the database:
-       python3 server/app/scripts/load_degree_plan.py
-"""
-
 import sys
 import os
 import re
 import csv
 import urllib.request
 import html
+import argparse
+
+# --- CHANGE THIS TO YOUR PREFERRED DEFAULT DIRECTORY ---
+import os
+
+# This finds the directory where the script is currently running
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_SAVE_DIR = os.path.join(SCRIPT_DIR, "..", "..", "csv_files")
 
 
 def fetch_page(url):
-    """Fetch a URL and return the HTML as a string."""
     req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) SmartAdvisors/1.0'
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) SmartAdvisors/1.0'
     })
     with urllib.request.urlopen(req, timeout=15) as resp:
         return resp.read().decode('utf-8', errors='replace')
 
+def _parse_req_text(text):
+    """
+    Extracts requirements into a list. 
+    Groups 'or' conditions together: ['CSE 3318', 'IE 3301 or MATH 3313']
+    """
+    if not text:
+        return []
+
+    results = []
+    course_code = r'[A-Z]{2,4}\s+\d{4}'
+    
+    # 1. First, find everything inside parentheses: (IE 3301 or MATH 3313)
+    paren_groups = re.findall(r'\(([^)]+)\)', text)
+    for group in paren_groups:
+        if ' or ' in group.lower():
+            # Clean up the internal codes
+            codes = re.findall(course_code, group)
+            results.append(" or ".join(codes))
+            # Remove from text so we don't double-count
+            text = text.replace(f"({group})", "")
+
+    # 2. Next, find 'or' groups not in parentheses: IE 3301 or MATH 3313
+    or_pattern = re.compile(rf'({course_code}(?:\s+or\s+{course_code})+)', re.IGNORECASE)
+    standalone_ors = or_pattern.findall(text)
+    for group in standalone_ors:
+        results.append(re.sub(r'\s+or\s+', ' or ', group, flags=re.IGNORECASE))
+        text = text.replace(group, "")
+
+    # 3. Finally, grab any remaining single course codes
+    remaining_codes = re.findall(course_code, text)
+    for code in remaining_codes:
+        results.append(code.strip())
+
+    return results
 
 def parse_prerequisites(desc_text):
-    """Extract prerequisite course codes from a course description."""
-    prereqs = []
-
-    # Match patterns like "Prerequisite: CSE 1310 and CSE 2315" or "Prerequisites: MATH 1426"
-    prereq_match = re.search(
-        r'[Pp]rerequisites?[:\s]+(.+?)(?:\.|$)',
-        desc_text,
-        re.IGNORECASE
-    )
-    if prereq_match:
-        prereq_text = prereq_match.group(1)
-        # Extract course codes (DEPT NNNN pattern)
-        codes = re.findall(r'([A-Z]{2,4}\s*\d{4})', prereq_text)
-        prereqs = [c.strip() for c in codes]
-
-    return prereqs
-
+    # Regex looks for Prerequisite(s): and stops at Corequisite or end of string
+    match = re.search(r'Prerequisite(?:s)?\s*:\s*(.*)', desc_text, re.IGNORECASE | re.DOTALL)
+    if match:
+        content = re.split(r'Corequisite', match.group(1), flags=re.IGNORECASE)[0]
+        # Clean up common UTA filler phrases that break parsers
+        content = re.sub(r'Admitted into.*?\.', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'C or better in.*?(?:following:)?', '', content, flags=re.IGNORECASE)
+        return _parse_req_text(content)
+    return []
 
 def parse_corequisites(desc_text):
-    """Extract corequisite course codes from a course description."""
-    coreqs = []
+    match = re.search(r'Corequisite(?:s)?\s*:\s*(.*)', desc_text, re.IGNORECASE | re.DOTALL)
+    if match:
+        return _parse_req_text(match.group(1))
+    return []
 
-    coreq_match = re.search(
-        r'[Cc]orequisites?[:\s]+(.+?)(?:\.|$)',
-        desc_text,
-        re.IGNORECASE
-    )
-    if coreq_match:
-        coreq_text = coreq_match.group(1)
-        codes = re.findall(r'([A-Z]{2,4}\s*\d{4})', coreq_text)
-        coreqs = [c.strip() for c in codes]
-
-    return coreqs
-
+def _clean(raw_html):
+    text = html.unescape(re.sub(r'<[^>]+>', ' ', raw_html)).strip()
+    text = text.replace('\xa0', ' ').replace('&nbsp;', ' ')
+    return re.sub(r'  +', ' ', text)
 
 def scrape_catalog(dept_code):
-    """
-    Scrape UTA catalog course descriptions for a department.
-    Returns a list of dicts with keys: code, name, prereqs, coreqs.
-    """
     dept_lower = dept_code.lower()
     url = f'https://catalog.uta.edu/coursedescriptions/{dept_lower}/'
     print(f"Fetching: {url}")
@@ -84,171 +87,58 @@ def scrape_catalog(dept_code):
     try:
         page_html = fetch_page(url)
     except Exception as e:
-        print(f"Error fetching catalog: {e}")
-        print(f"Try opening the URL manually: {url}")
+        print(f"Error: {e}")
         sys.exit(1)
 
     courses = []
-
-    # UTA catalog uses <div class="courseblock"> for each course
-    # Course title is in <p class="courseblocktitle">
-    # Description is in <p class="courseblockdesc">
+    # Primary UTA Catalog pattern
     course_blocks = re.findall(
-        r'class="courseblocktitle[^"]*"[^>]*>(.*?)</p>.*?'
-        r'(?:class="courseblockdesc[^"]*"[^>]*>(.*?)</p>)?',
-        page_html,
-        re.DOTALL
+        r'class="courseblocktitle[^"]*"[^>]*>(.*?)</p>.*?class="courseblockdesc[^"]*"[^>]*>(.*?)</p>',
+        page_html, re.DOTALL
     )
 
-    if not course_blocks:
-        # Alternative pattern: some catalog pages use different markup
-        course_blocks = re.findall(
-            r'<strong>([A-Z]{2,4}\s+\d{4})[.\s]+(.*?)</strong>.*?'
-            r'(?:<p[^>]*>(.*?)</p>)?',
-            page_html,
-            re.DOTALL
-        )
-        if course_blocks:
-            for code_raw, name_raw, desc_raw in course_blocks:
-                code = html.unescape(re.sub(r'<[^>]+>', '', code_raw)).strip()
-                # Normalize non-breaking spaces
-                code = code.replace('\xa0', ' ').replace('&nbsp;', ' ')
-                name = html.unescape(re.sub(r'<[^>]+>', '', name_raw)).strip()
-                desc = html.unescape(re.sub(r'<[^>]+>', '', desc_raw or '')).strip()
-
-                prereqs = parse_prerequisites(desc)
-                coreqs = parse_corequisites(desc)
-
-                courses.append({
-                    'code': code,
-                    'name': name,
-                    'prereqs': prereqs,
-                    'coreqs': coreqs,
-                })
-            return courses
-
     for title_html, desc_html in course_blocks:
-        # Clean HTML tags
-        title_text = html.unescape(re.sub(r'<[^>]+>', '', title_html)).strip()
-        desc_text = html.unescape(re.sub(r'<[^>]+>', '', desc_html or '')).strip()
+        title_text = _clean(title_html)
+        desc_text  = _clean(desc_html)
 
-        # Normalize non-breaking spaces
-        title_text = title_text.replace('\xa0', ' ').replace('&nbsp;', ' ')
-        desc_text = desc_text.replace('\xa0', ' ').replace('&nbsp;', ' ')
-
-        # Extract course code and name from title
-        # Patterns: "CSE 1310. Introduction to Computers..." or "CSE 1310 - Introduction..."
-        title_match = re.match(
-            r'([A-Z]{2,4}\s+\d{4})\s*[.\-\s]+\s*(.+?)(?:\s*\(\d+.*\))?$',
-            title_text
-        )
-        if not title_match:
-            # Try without name separator
-            title_match = re.match(r'([A-Z]{2,4}\s+\d{4})\s+(.*)', title_text)
-
-        if not title_match:
-            continue
-
-        code = title_match.group(1).strip()
-        name = title_match.group(2).strip()
-        # Remove trailing credit hours like "(3 semester credit hours)"
-        name = re.sub(r'\s*\(\d+\s*(semester\s+)?credit\s+hours?\)', '', name, flags=re.IGNORECASE).strip()
-        # Remove trailing period
-        name = name.rstrip('.')
-
-        prereqs = parse_prerequisites(desc_text)
-        coreqs = parse_corequisites(desc_text)
-
-        courses.append({
-            'code': code,
-            'name': name,
-            'prereqs': prereqs,
-            'coreqs': coreqs,
-        })
-
+        # Pattern: CODE. NAME. HOURS.
+        title_match = re.match(r'([A-Z]{2,4}\s+\d{4})\.\s+(.*?)\.\s+\d+\s+Hour', title_text)
+        if title_match:
+            courses.append({
+                'code': title_match.group(1).strip(),
+                'name': title_match.group(2).strip(),
+                'prereqs': parse_prerequisites(desc_text),
+                'coreqs': parse_corequisites(desc_text)
+            })
     return courses
 
-
-def format_list(items):
-    """Format a list of items for CSV output."""
-    if not items:
-        return '[None]'
-    if len(items) == 1:
-        return items[0]
-    return ', '.join(items)
-
-
-def write_csv(courses, dept_code, output_path):
-    """Write courses to a CSV file in the degree plan format."""
+def write_csv(courses, output_path):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(['Formal Name', 'Course Name', 'Prerequisites', 'Corequisites', 'Requirement'])
-
-        for course in courses:
-            writer.writerow([
-                course['code'],
-                course['name'],
-                format_list(course['prereqs']),
-                format_list(course['coreqs']),
-                'required',  # Default — user should manually mark electives
-            ])
-
-    print(f"\nWrote {len(courses)} courses to: {output_path}")
-
+        for c in courses:
+            # This stores the list exactly as requested: ['Code', 'Code or Code']
+            # If you want it without brackets in the CSV, use: ", ".join(c['prereqs'])
+            prereq_val = str(c['prereqs']) if c['prereqs'] else "[None]"
+            coreq_val = str(c['coreqs']) if c['coreqs'] else "[None]"
+            
+            writer.writerow([c['code'], c['name'], prereq_val, coreq_val, 'required'])
+    print(f"File created: {output_path}")
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 scrape_uta_catalog.py <DEPT>")
-        print("Example: python3 scrape_uta_catalog.py CSE")
-        print("         python3 scrape_uta_catalog.py EE")
-        print("         python3 scrape_uta_catalog.py MAE")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('dept', help='Dept code (e.g., CSE)')
+    parser.add_argument('--output', '-o', help='Custom path')
+    args = parser.parse_args()
 
-    dept_code = sys.argv[1].upper()
-
-    # Determine output path
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    server_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
-    data_dir = os.path.join(server_root, 'data')
-
-    if not os.path.isdir(data_dir):
-        os.makedirs(data_dir)
-
-    output_path = os.path.join(data_dir, f'{dept_code} Degree Plan CSV.csv')
-
-    # Scrape the catalog
-    courses = scrape_catalog(dept_code)
-
-    if not courses:
-        print(f"No courses found for department '{dept_code}'.")
-        print(f"Check if the URL is correct: https://catalog.uta.edu/coursedescriptions/{dept_code.lower()}/")
-        sys.exit(1)
-
-    # Filter to only courses from the target department
-    dept_courses = [c for c in courses if c['code'].startswith(dept_code)]
-    other_courses = [c for c in courses if not c['code'].startswith(dept_code)]
-
-    if other_courses:
-        print(f"\nNote: Found {len(other_courses)} courses from other departments (skipped):")
-        for c in other_courses[:5]:
-            print(f"  - {c['code']}: {c['name']}")
-        if len(other_courses) > 5:
-            print(f"  ... and {len(other_courses) - 5} more")
-
-    # Write CSV
-    write_csv(dept_courses, dept_code, output_path)
-
-    # Print next steps
-    print(f"\n--- NEXT STEPS ---")
-    print(f"1. Open the CSV file: {output_path}")
-    print(f"2. Review courses and mark electives:")
-    print(f"   - Change 'required' to 'elective' in the Requirement column for elective courses")
-    print(f"   - Add general education courses (MATH, PHYS, ENGL, etc.) that are part of the degree plan")
-    print(f"   - Add placeholder rows for elective slots (e.g., '{dept_code} 43XX, {dept_code} Technical Elective (1), [None], [None], required')")
-    print(f"3. Reload the database:")
-    print(f"   python3 server/app/scripts/load_degree_plan.py")
-    print(f"4. Add '{dept_code}' to DEPT_TO_CSV in load_degree_plan.py if not already there")
-
+    dept_code = args.dept.upper()
+    output_path = args.output if args.output else os.path.join(DEFAULT_SAVE_DIR, f"{dept_code} Fixed Degree plan.csv")
+    
+    all_courses = scrape_catalog(dept_code)
+    dept_only = [c for c in all_courses if c['code'].startswith(dept_code)]
+    
+    write_csv(dept_only, output_path)
 
 if __name__ == '__main__':
     main()
