@@ -1,0 +1,12 @@
+Formal Name,Course Name,Prerequisites,Corequisites,Requirement
+LATN 1441,LATIN LEVEL I,[None],[None],required
+LATN 1442,LATIN LEVEL II,['LATN 1441'],[None],required
+LATN 2313,LATIN LEVEL III,['LATN 1442'],[None],required
+LATN 2314,LATIN LEVEL IV,['LATN 2313'],[None],required
+LATN 4301,INTENSIVE LATIN FOR READING I,[None],[None],required
+LATN 4302,INTENSIVE LATIN FOR READING II,[None],[None],required
+LATN 4335,TOPICS IN LATIN LITERATURE,[None],[None],required
+LATN 4391,CONFERENCE COURSE,[None],[None],required
+LATN 5301,INTENSIVE LATIN FOR READING I,[None],[None],required
+LATN 5302,INTENSIVE LATIN FOR READING II,[None],[None],required
+LATN 5391,CONFERENCE COURSE IN LATIN,[None],[None],required

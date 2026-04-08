@@ -204,6 +204,104 @@ python3 run.py
 
 ---
 
+## Deploying
+
+The app has two parts to deploy: a **React frontend** (static files) and a **Flask backend** (Python server).
+
+A `Procfile` is already included for platforms like Render/Heroku:
+```
+web: cd server && gunicorn run:app
+```
+
+---
+
+### Databases — No Keys or Credentials Needed
+
+All three databases are **plain SQLite files** included in the repo under `server/data/`. There are no database passwords, connection strings, or keys to configure. They just work.
+
+| Database | What it holds |
+|---|---|
+| `professors.db` | RateMyProfessors ratings and tags |
+| `classes.db` | Degree plan tables (one per major) |
+| `grades.sqlite` | UTA grade distribution data |
+
+The backend auto-detects these files from `server/data/` — no environment variable needed.
+
+> **Optional:** If you want to use a cloud PostgreSQL database instead of SQLite, set the `DATABASE_URL` env var on your hosting platform. The app will use it automatically.
+
+---
+
+### Environment Variables for Deployment
+
+| Variable | Where to set | Required? | Notes |
+|---|---|---|---|
+| `VITE_GOOGLE_CLIENT_ID` | Frontend build env | Yes (for Google login) | Same Client ID as local dev, but you must add your production domain to **Authorized JavaScript Origins** in [Google Cloud Console](https://console.cloud.google.com) |
+| `SECRET_KEY` | Backend env | Yes for production | Any random string — set it in your hosting platform's env var settings |
+| `DATABASE_URL` | Backend env | Only if using PostgreSQL | Not needed when using the included SQLite files |
+
+---
+
+### Deploy the Frontend
+
+```bash
+cd client
+echo "VITE_GOOGLE_CLIENT_ID=24693373849-lj8avjqbcppv05125st5kj3q29k1u6jn.apps.googleusercontent.com" > .env
+npm install
+npm run build
+```
+
+This creates a `dist/` folder with static files. Deploy that folder to **Vercel**, **Netlify**, **Render**, or any static hosting.
+
+> **Google Sign-In will NOT work until you do this:**
+> 1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials → your OAuth Client ID
+> 2. Under **Authorized JavaScript Origins**, add your production URL (e.g., `https://smartadvisors.onrender.com`) — no trailing slash
+> 3. Leave **Authorized redirect URIs** empty (the app uses popup flow, not redirects)
+> 4. Save and wait a few minutes for changes to propagate
+>
+> If you see `Error 400: redirect_uri_mismatch`, this is the fix.
+
+---
+
+### Deploy the Backend (Render Example)
+
+1. Connect your GitHub repo on [Render](https://render.com)
+2. Create a new **Web Service**
+3. Set **Root Directory** to `server`
+4. **Build Command:** `pip install -r ../requirements.txt`
+5. **Start Command:** `gunicorn run:app`
+6. Add environment variable: `SECRET_KEY` = any random string
+7. Deploy — the SQLite databases are included in the repo, so no database add-on is needed
+
+---
+
+### Gotcha: Hardcoded API URL
+
+The frontend currently has the backend URL hardcoded to `http://127.0.0.1:8000` in two files:
+- `client/src/App.tsx` (line 15)
+- `client/src/components/DegreePlanSetup.tsx` (line 34)
+
+**Before deploying**, change these to your production backend URL:
+```typescript
+const API_URL = 'https://your-backend-url.onrender.com';
+```
+
+Or make it dynamic with an environment variable:
+```typescript
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+```
+Then set `VITE_API_URL` in your frontend `.env` or hosting platform.
+
+---
+
+### CORS
+
+The backend currently allows all origins (`CORS(app)`), which is fine for development. For production, you can restrict it in `server/app/__init__.py`:
+```python
+CORS(app, origins=["https://your-frontend-domain.com"])
+```
+
+---
+
 ## App Flow
 
 ```

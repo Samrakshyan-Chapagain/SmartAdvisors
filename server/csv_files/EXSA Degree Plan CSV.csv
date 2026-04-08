@@ -1,0 +1,42 @@
+Formal Name,Course Name,Prerequisites,Corequisites,Requirement
+EXSA 0101,ARCHERY,[None],[None],required
+EXSA 0105,BADMINTON,[None],[None],required
+EXSA 0106,BRAZILIAN JIU-JITSU,[None],[None],required
+EXSA 0107,MARTIAL ARTS,[None],[None],required
+EXSA 0108,BASKETBALL,[None],[None],required
+EXSA 0120,BOWLING,[None],[None],required
+EXSA 0140,GOLF,[None],[None],required
+EXSA 0145,BEGINNING FENCING,[None],[None],required
+EXSA 0154,FITNESS WALK,[None],[None],required
+EXSA 0156,JOGGING FOR FITNESS,[None],[None],required
+EXSA 0157,AEROBIC DANCE,[None],[None],required
+EXSA 0159,EXERCISE AND SPORT FOR THE HANDICAPPED,[None],[None],required
+EXSA 0160,STEP AEROBICS,[None],[None],required
+EXSA 0163,YOGA,[None],[None],required
+EXSA 0164,CARDIO KICKBOXING,[None],[None],required
+EXSA 0165,PILATES,[None],[None],required
+EXSA 0166,RACQUETBALL,[None],[None],required
+EXSA 0167,SOCCER,[None],[None],required
+EXSA 0168,INTERMEDIATE YOGA,[None],[None],required
+EXSA 0169,ADVANCED PILATES,[None],[None],required
+EXSA 0170,SWIMMING: BEGINNING,[None],[None],required
+EXSA 0171,WATER POLO,[None],[None],required
+EXSA 0172,SWIMMING FOR FITNESS,[None],[None],required
+EXSA 0174,WATER AEROBICS,[None],[None],required
+EXSA 0175,BODY SCULPTING/CORE STRENGTH,[None],[None],required
+EXSA 0176,ZUMBA INTERVAL TRAINING,[None],[None],required
+EXSA 0177,TENNIS,[None],[None],required
+EXSA 0178,TENNIS: ADVANCED,[None],[None],required
+EXSA 0180,VOLLEYBALL,[None],[None],required
+EXSA 0181,VOLLEYBALL: ADVANCED,[None],[None],required
+EXSA 0184,WEIGHT TRAINING,[None],[None],required
+EXSA 0189,INTERCOLLEGIATE ATHLETICS,[None],[None],required
+EXSA 0191,DESIGNATED ACTIVITIES,[None],[None],required
+EXSA 1116,PACE: EXERCISE AT YOUR OWN PACE,[None],[None],required
+EXSA 1118,BOOT CAMP AEROBICS,[None],[None],required
+EXSA 1119,CO-ED SELF DEFENSE,[None],[None],required
+EXSA 1220,LIFEGUARD TRAINING,[None],[None],required
+EXSA 1246,SELF DEFENSE FOR WOMEN,[None],[None],required
+EXSA 1247,EXERCISE & WEIGHT MANAGEMENT,[None],[None],required
+EXSA 1249,SCUBA DIVING,[None],[None],required
+EXSA 1259,ADVANCED SCUBA,[None],[None],required

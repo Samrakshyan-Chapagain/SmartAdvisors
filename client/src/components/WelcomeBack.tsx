@@ -57,6 +57,7 @@ export default function WelcomeBack({
                 alt={userName}
                 className="w-16 h-16 rounded-2xl border-2 border-white/20 shadow-lg"
                 referrerPolicy="no-referrer"
+                onError={(e) => { (e.target as HTMLImageElement).onerror = null; (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             ) : (
               <div className="w-16 h-16 rounded-2xl bg-[#0046FF]/30 border border-white/10 flex items-center justify-center">
@@ -202,7 +203,7 @@ export default function WelcomeBack({
               onClick={onNewTranscript}
               className="flex items-center justify-center gap-2 border border-white/10 hover:border-red-500/40 text-white/40 hover:text-red-400 font-bold py-3 rounded-xl transition-all text-sm"
             >
-              <FileUp className="w-4 h-4" /> New Transcript
+              <FileUp className="w-4 h-4" /> New Unofficial Transcript
             </motion.button>
           </div>
         </div>

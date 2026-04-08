@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import Layout from './components/Layout';
 import DisclaimerModal from './components/DisclaimerModal';
 import WelcomePage from './components/WelcomePage';
-import LoginPage, { GoogleUser } from './components/LoginPage';
+import SignInOverlay from './components/SignInOverlay';
+import type { GoogleUser } from './components/SignInOverlay';
 import UploadScreen from './components/UploadScreen';
 import TranscriptReview from './components/TranscriptReview';
 import type { Preferences } from './components/PreferenceForm';
@@ -24,6 +26,14 @@ const API_URL = 'http://127.0.0.1:8000';
 
 const STORAGE_KEY = (email: string) => `sa_plan_${email}`;
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 interface ApiRecommendationResponse {
   success: boolean;
   recommendations: any[];
@@ -43,7 +53,7 @@ interface ApiRecommendationResponse {
   Returning: Sign In → 4 = WelcomeBack dashboard → SemesterPlanView
 */
 
-function App() {
+function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [step, setStep] = useState<number>(0);
   const [showLogin, setShowLogin] = useState(false);
@@ -67,9 +77,10 @@ function App() {
     requiredCourses: [],
     electiveCourses: []
   });
+  const [enteredViaOverlay, setEnteredViaOverlay] = useState(false);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [step, showLogin]);
 
   // Reset plan degree data whenever the user navigates away from step 3
@@ -88,13 +99,23 @@ function App() {
 
   const handleUploadAndParse = async () => {
     if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      alert('File too large. Please upload a PDF under 5 MB.');
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Please upload a PDF file.');
+      return;
+    }
+
     setIsLoading(true);
 
     const formData = new FormData();
     formData.append('transcript', file);
 
     try {
-      const response = await fetch(`${API_URL}/api/parse-transcript`, {
+      const response = await fetchWithTimeout(`${API_URL}/api/parse-transcript`, {
         method: 'POST',
         body: formData,
       });
@@ -104,11 +125,14 @@ function App() {
         setCompletedCourses(data.courses);
         setStep(2);
       } else {
-        alert("Error parsing transcript: " + (data.error || "Unknown error"));
+        alert(data.error || 'Error parsing transcript.');
       }
-    } catch (error) {
-      console.error("Parse error:", error);
-      alert("Could not connect to server. Is the backend running?");
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        alert('Request timed out. Please try again.');
+      } else {
+        alert('Could not connect to server. Is the backend running?');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +149,7 @@ function App() {
     formData.append('preferences', JSON.stringify(preferences));
 
     try {
-      const response = await fetch(`${API_URL}/api/recommendations`, {
+      const response = await fetchWithTimeout(`${API_URL}/api/recommendations`, {
         method: 'POST',
         body: formData,
       });
@@ -134,10 +158,14 @@ function App() {
         setApiData(data);
         setStep(4);
       } else {
-        alert("Error: " + (data.error || "Unknown error occurred"));
+        alert(data.error || 'Could not generate recommendations.');
       }
-    } catch (error) {
-      alert("Could not connect to server.");
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        alert('Request timed out. Please try again.');
+      } else {
+        alert('Could not connect to server. Is the backend running?');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +183,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/degree-plan`, {
+      const response = await fetchWithTimeout(`${API_URL}/api/degree-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,7 +197,7 @@ function App() {
           chosen_electives: chosenElectives,
           preferences: userPrefs,
         }),
-      });
+      }, 60000); // degree plans can take longer
       const data = await response.json();
       if (response.ok && data.success) {
         setDegreePlan(data);
@@ -187,10 +215,14 @@ function App() {
           }
         }
       } else {
-        alert("Error: " + (data.error || "Could not generate degree plan"));
+        alert(data.error || 'Could not generate degree plan.');
       }
-    } catch (error) {
-      alert("Could not connect to server.");
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        alert('Request timed out. Please try again.');
+      } else {
+        alert('Could not connect to server. Is the backend running?');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -288,7 +320,6 @@ function App() {
   };
 
   const handleSignOut = () => {
-    if (googleUser) localStorage.removeItem(STORAGE_KEY(googleUser.email));
     setStep(0);
     setShowLogin(false);
     setIsLoggedIn(false);
@@ -319,56 +350,75 @@ function App() {
     return <DisclaimerModal onAccept={() => setDisclaimerAccepted(true)} />;
   }
 
-  // --- Login page (sub-state of step 0) ---
-  if (showLogin && step === 0) {
-    return (
-      <Layout onLogoClick={handleLogoClick}>
-        <LoginPage
-          onGuestContinue={() => { setIsLoggedIn(false); setShowLogin(false); setStep(1); }}
-          onLogin={(user) => {
-            // Check for a previously saved plan for this user
-            const savedRaw = localStorage.getItem(STORAGE_KEY(user.email));
-            if (savedRaw) {
-              try {
-                const saved = JSON.parse(savedRaw);
-                setCompletedCourses(saved.completedCourses || []);
-                setDepartment(saved.department || '');
-                setDegreePlan(saved.degreePlan);
-                setGoogleUser(user);
-                setIsLoggedIn(true);
-                setIsReturningUser(true);
-                setShowLogin(false);
-                setStep(4);
-                return;
-              } catch {
-                // Corrupted saved data — clear it and fall through to normal flow
-                localStorage.removeItem(STORAGE_KEY(user.email));
-              }
-            }
+  // --- Main step flow ---
+  if (step === 0) {
+    const handleLogin = (user: GoogleUser) => {
+      const savedRaw = localStorage.getItem(STORAGE_KEY(user.email));
+      if (savedRaw) {
+        try {
+          const saved = JSON.parse(savedRaw);
+          // Validate that saved plan data is usable
+          if (saved.degreePlan && Array.isArray(saved.degreePlan.plan) && saved.degreePlan.stats) {
+            setCompletedCourses(saved.completedCourses || []);
+            setDepartment(saved.department || '');
+            setDegreePlan(saved.degreePlan);
             setGoogleUser(user);
             setIsLoggedIn(true);
+            setIsReturningUser(true);
             setShowLogin(false);
-            setStep(1);
-          }}
-          onBack={() => setShowLogin(false)}
+            setStep(4);
+            return;
+          }
+          // Data is malformed — clear it
+          localStorage.removeItem(STORAGE_KEY(user.email));
+        } catch {
+          localStorage.removeItem(STORAGE_KEY(user.email));
+        }
+      }
+      setGoogleUser(user);
+      setIsLoggedIn(true);
+      setShowLogin(false);
+      setStep(1);
+    };
+
+    return (
+      <>
+        <motion.div
+          animate={showLogin ? { scale: 0.97, opacity: 0 } : { scale: 1, opacity: 1 }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          style={{ pointerEvents: showLogin ? 'none' : undefined }}
+        >
+          <Layout onLogoClick={handleLogoClick} onSignIn={() => setShowLogin(true)}>
+            <WelcomePage
+              onGetStarted={() => { setIsLoggedIn(false); setEnteredViaOverlay(false); setStep(1); }}
+              onSignIn={() => setShowLogin(true)}
+            />
+          </Layout>
+        </motion.div>
+
+        <SignInOverlay
+          isVisible={showLogin}
+          googleOAuthEnabled={googleOAuthEnabled}
+          onLogin={handleLogin}
+          onGuestContinue={() => { setIsLoggedIn(false); setShowLogin(false); setEnteredViaOverlay(true); setStep(1); }}
+          onClose={() => setShowLogin(false)}
         />
-      </Layout>
+      </>
     );
   }
 
-  // --- Main step flow ---
-  if (step === 0) return (
-    <Layout onLogoClick={handleLogoClick}>
-      <WelcomePage
-        onGetStarted={() => { setIsLoggedIn(false); setStep(1); }}
-        onSignIn={() => setShowLogin(true)}
-      />
-    </Layout>
-  );
-
   if (step === 1) return (
     <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined} fullViewport>
-      <UploadScreen file={file} department={department} onFileChange={handleFileChange} onClearFile={() => setFile(null)} setDepartment={setDepartment} onNext={handleUploadAndParse} onBack={() => setStep(0)} isLoading={isLoading} />
+      <UploadScreen
+        file={file}
+        department={department}
+        onFileChange={handleFileChange}
+        setDepartment={setDepartment}
+        onNext={handleUploadAndParse}
+        onSkipTranscript={() => { setCompletedCourses([]); setStep(3); }}
+        onBack={() => { if (enteredViaOverlay) { setEnteredViaOverlay(false); setStep(0); setShowLogin(true); } else { setStep(0); } }}
+        isLoading={isLoading}
+      />
     </Layout>
   );
 

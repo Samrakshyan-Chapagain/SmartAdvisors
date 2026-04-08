@@ -174,7 +174,7 @@ export default function SemesterPlanView({ plan, onBack, onEditPlan, onNewTransc
             onClick={onNewTranscript}
             className="flex items-center gap-2 border border-white/10 hover:border-red-500/40 text-white/40 hover:text-red-400 px-4 py-2 rounded-xl transition-all font-bold text-sm"
           >
-            <FileUp className="w-3.5 h-3.5" /> New Transcript
+            <FileUp className="w-3.5 h-3.5" /> New Unofficial Transcript
           </button>
         </div>
         {/* Right: Save as PDF */}

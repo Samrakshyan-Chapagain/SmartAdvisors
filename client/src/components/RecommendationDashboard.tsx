@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Star, TrendingUp, BookOpen, Loader2, Sparkles, ArrowLeft, Trophy, Download, ArrowRight } from 'lucide-react';
+import { Star, TrendingUp, BookOpen, Loader2, Sparkles, ArrowLeft, Trophy, Download, ArrowRight, GraduationCap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 type PreferencesType = {
@@ -84,7 +84,7 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
             )}
           </div>
           <span className="text-xs font-bold text-white px-2 py-1 rounded-full border border-white/10" style={{ background: accentColor }}>
-            {classData.professors.length} Options
+            {classData.professors?.length || 0} Options
           </span>
         </div>
         <p className="text-white/60 font-medium text-sm truncate" title={classData.courseName}>
@@ -97,7 +97,12 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
         )}
       </div>
       <div className="overflow-y-auto p-4 space-y-4 custom-scrollbar flex-grow print-prof-list">
-        {classData.professors.map((professor, profIndex) => {
+        {(!classData.professors || classData.professors.length === 0) && (
+          <div className="text-center py-6 text-white/30 italic text-sm">
+            No professor data available for this course yet.
+          </div>
+        )}
+        {(classData.professors || []).map((professor, profIndex) => {
           const isBestMatch = profIndex === 0;
           return (
             <div
@@ -173,11 +178,11 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
     }
   }, [userData]);
 
-  const visibleClasses = classes.filter((c) => c.professors.length > 0);
-  const visibleElectives = electiveClasses.filter((c) => c.professors.length > 0);
+  const visibleClasses = classes;
+  const visibleElectives = electiveClasses;
 
   const totalCourses = visibleClasses.length + visibleElectives.length;
-  const totalProfessors = visibleClasses.reduce((sum, c) => sum + c.professors.length, 0) + visibleElectives.reduce((sum, c) => sum + c.professors.length, 0);
+  const totalProfessors = visibleClasses.reduce((sum, c) => sum + (c.professors?.length || 0), 0) + visibleElectives.reduce((sum, c) => sum + (c.professors?.length || 0), 0);
 
   // --- DARK MODE COLORS ---
   const getDifficultyColor = (difficulty: string) => {
@@ -475,7 +480,15 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
 
       {visibleClasses.length === 0 && visibleElectives.length === 0 ? (
           <div className="text-center py-20">
-              <p className="text-white/60 text-lg">No classes found matching your criteria.</p>
+            {userData.recommendations.length === 0 ? (
+              <>
+                <GraduationCap className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
+                <h3 className="text-2xl font-bold text-white mb-2">You're all caught up!</h3>
+                <p className="text-white/60 text-lg">Based on your transcript, you've completed all eligible courses for your degree. Congratulations!</p>
+              </>
+            ) : (
+              <p className="text-white/60 text-lg">No classes found matching your criteria. Try adjusting your filters above.</p>
+            )}
           </div>
       ) : (
         <>
@@ -490,7 +503,7 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
                 <span className="text-sm font-bold text-white/50 bg-white/10 px-3 py-1 rounded-full">{visibleClasses.length} courses</span>
               </div>
               <p className="text-white/40 text-sm ml-12 mb-1">
-                Based on your transcript, these are the required courses you're eligible to take next.
+                Based on your unofficial transcript, these are the required courses you're eligible to take next.
               </p>
               {userData.stats && (
                 <p className="text-white/50 text-sm ml-12 mb-4">
@@ -521,7 +534,7 @@ export default function RecommendationDashboard({ userData, onBack }: Recommenda
                   <span className="text-sm font-bold text-[#FF8040] bg-[#FF8040]/20 border border-[#FF8040]/30 px-3 py-1 rounded-full">{visibleElectives.length} courses</span>
                 </div>
                 <p className="text-white/40 text-sm ml-12 mb-1">
-                  Based on your transcript, these are the elective courses you're eligible to take.
+                  Based on your unofficial transcript, these are the elective courses you're eligible to take.
                 </p>
                 {userData.stats && (
                   <p className="text-white/50 text-sm ml-12">

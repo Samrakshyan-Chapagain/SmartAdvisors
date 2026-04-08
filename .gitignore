@@ -22,6 +22,7 @@ build/
 !server/data/classes.db
 !server/data/grades.sqlite
 !server/data/professors.db
+!server/data_new/smart_advisors.db
 
 # Claude Code (local only - not for GitHub)
 .claude/

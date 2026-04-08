@@ -1,47 +1,136 @@
 import os
 import sqlite3
-from .parse_transcript import extract_all_courses 
+from .parse_transcript import extract_all_courses
+
+
+def _get_db_path():
+    """Return the path to smart_advisors.db."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.abspath(os.path.join(script_dir, '../../data_new/smart_advisors.db'))
+
+
+def parse_prereq_string(raw):
+    """
+    Parse a prerequisites/corequisites string into a list of normalized course codes.
+
+    Handles:
+      - '' or None or 'None'          → []
+      - 'EE 2310, PHYS 1444'          → ['EE 2310', 'PHYS 1444']
+      - "['CSE 1310', 'CSE 1320']"    → ['CSE 1310', 'CSE 1320']
+    """
+    if not raw:
+        return []
+    stripped = raw.strip()
+    if stripped.lower() in ('none', '[none]', "['none']", '[]'):
+        return []
+    # Handle Python list literal format
+    if stripped.startswith('[') and stripped.endswith(']'):
+        inner = stripped[1:-1]
+        codes = [c.strip().strip("'\"") for c in inner.split(',') if c.strip()]
+        codes = [c for c in codes if c.lower() != 'none' and c]
+        return [normalize_code(c) for c in codes]
+    # Plain comma-separated
+    return [normalize_code(p) for p in stripped.split(',') if p.strip()]
+
 
 def get_department_courses(department):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.abspath(os.path.join(script_dir, '../../data/classes.db'))
+    """
+    Fetch all courses for a degree program from smart_advisors.db.
+
+    Returns list of dicts with keys:
+      course_id, course_name, pre_requisites, co_requisites, description,
+      credit_hours, dept_prefix, requirement_type, elective_group,
+      elective_hours, professional
+    """
+    db_path = _get_db_path()
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found at {db_path}")
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute(f'SELECT * FROM ClassesFor{department}')
-    rows = cur.fetchall()
-    columns = [desc[0] for desc in cur.description]
-    courses = [dict(zip(columns, row)) for row in rows]
+    cur.execute('''
+        SELECT c.course_id, c.course_name, c.pre_requisites, c.co_requisites,
+               c.description, c.credit_hours, c.dept_prefix,
+               dc.requirement_type, dc.elective_group, dc.elective_hours, dc.professional
+        FROM degree_courses dc
+        JOIN courses c ON dc.course_id = c.course_id
+        WHERE dc.degree_id = ?
+    ''', (department,))
+    courses = [dict(row) for row in cur.fetchall()]
     conn.close()
     return courses
+
+
+def get_core_curriculum():
+    """Fetch core curriculum requirements grouped by category."""
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute('SELECT category, category_hours, course_id, course_hours, notes FROM core_curriculum')
+    rows = [dict(row) for row in cur.fetchall()]
+    conn.close()
+
+    # Group by category
+    categories = {}
+    for row in rows:
+        cat = row['category']
+        if cat not in categories:
+            categories[cat] = {
+                'category': cat,
+                'hours_required': row['category_hours'],
+                'courses': [],
+            }
+        categories[cat]['courses'].append({
+            'course_id': row['course_id'],
+            'course_hours': row['course_hours'],
+            'notes': row['notes'],
+        })
+    return categories
+
+
+def get_degree_info(department):
+    """Get degree metadata (name, college, total_hours)."""
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute('SELECT degree_id, degree_name, college, total_hours FROM degrees WHERE degree_id = ?', (department,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 
 def normalize_code(course_code):
     return ' '.join(str(course_code).replace('\xa0', ' ').split()).strip()
 
+
 def is_course_eligible(course, completed, course_map):
-    course_id = normalize_code(course['Course_Num'])
-    prereqs = course.get('Pre_Requisites', '').strip()
-    if prereqs and prereqs.lower() != 'none':
-        prereq_list = [normalize_code(p) for p in prereqs.split(',') if p.strip()]
-        for p in prereq_list:
-            if p not in completed:
-                return False
-    coreqs = course.get('Co_Requisites', '').strip()
-    if coreqs and coreqs.lower() != 'none':
-        coreq_list = [normalize_code(p) for p in coreqs.split(',') if p.strip()]
-        for ccode in coreq_list:
-            if ccode in completed:
+    course_id = normalize_code(course['course_id'])
+    prereqs = course.get('pre_requisites', '') or ''
+    prereq_list = parse_prereq_string(prereqs)
+    for p in prereq_list:
+        if p not in completed:
+            # If the prereq doesn't exist in the course map at all,
+            # skip it — likely a stale/incorrect course code in the data.
+            if p not in course_map:
                 continue
-            co_course = course_map.get(ccode)
-            if not co_course:
+            return False
+    coreqs = course.get('co_requisites', '') or ''
+    coreq_list = parse_prereq_string(coreqs)
+    for ccode in coreq_list:
+        if ccode in completed:
+            continue
+        co_course = course_map.get(ccode)
+        if not co_course:
+            continue  # coreq not in DB — skip stale reference
+        co_prereqs = co_course.get('pre_requisites', '') or ''
+        co_prereq_list = parse_prereq_string(co_prereqs)
+        for p in co_prereq_list:
+            if p not in completed:
+                if p not in course_map:
+                    continue
                 return False
-            co_prereqs = co_course.get('Pre_Requisites', '').strip()
-            if co_prereqs and co_prereqs.lower() != 'none':
-                co_prereq_list = [normalize_code(p) for p in co_prereqs.split(',') if p.strip()]
-                for p in co_prereq_list:
-                    if p not in completed:
-                        return False
     return True
 
 # Courses that satisfy the same requirement (either/or options across departments).
@@ -59,14 +148,8 @@ def expand_completed_with_prereqs(normalized_completed, course_map):
     Transitively expand the completed set: if you passed a course, you must have
     satisfied its prerequisites too (directly or transitively).
 
-    Also applies course equivalences (e.g. MATH 3313 ↔ IE 3301) so that
+    Also applies course equivalences (e.g. MATH 3313 <-> IE 3301) so that
     completing one version of a course satisfies prereqs requiring the other.
-
-    Example: student has MATH 2425 (Calc II) on transcript.
-      MATH 2425 requires MATH 1426 → add MATH 1426 as implied completed.
-      MATH 1426 requires MATH 1402 → add MATH 1402 as implied completed.
-      MATH 1402 requires MATH 1302 → add MATH 1302 as implied completed.
-    Result: Pre-Calc and Algebra no longer appear as eligible recommendations.
     """
     expanded = set(normalized_completed)
     changed = True
@@ -76,13 +159,12 @@ def expand_completed_with_prereqs(normalized_completed, course_map):
             # Transitive prereq expansion
             course = course_map.get(code)
             if course:
-                prereqs = course.get('Pre_Requisites', '').strip()
-                if prereqs and prereqs.lower() != 'none':
-                    for p in [normalize_code(x) for x in prereqs.split(',') if x.strip()]:
-                        if p not in expanded:
-                            expanded.add(p)
-                            changed = True
-            # Equivalence expansion (e.g. took MATH 3313 → also counts as IE 3301)
+                prereqs = course.get('pre_requisites', '') or ''
+                for p in parse_prereq_string(prereqs):
+                    if p not in expanded:
+                        expanded.add(p)
+                        changed = True
+            # Equivalence expansion
             equiv = COURSE_EQUIVALENCES.get(code)
             if equiv and equiv not in expanded:
                 expanded.add(equiv)
@@ -90,30 +172,48 @@ def expand_completed_with_prereqs(normalized_completed, course_map):
     return expanded
 
 
+def _build_global_course_map():
+    """Load all courses from the courses table for prereq expansion."""
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute('SELECT course_id, course_name, pre_requisites, co_requisites, credit_hours FROM courses')
+    course_map = {}
+    for row in cur.fetchall():
+        d = dict(row)
+        course_map[normalize_code(d['course_id'])] = d
+    conn.close()
+    return course_map
+
+
 def filter_eligible_courses_unique(all_courses, completed_courses):
     normalized_completed = set(normalize_code(c) for c in completed_courses)
-    course_map = {normalize_code(c['Course_Num']): c for c in all_courses}
+
+    # Build course map from degree courses + global courses for prereq expansion
+    course_map = {normalize_code(c['course_id']): c for c in all_courses}
+    global_map = _build_global_course_map()
+    merged_map = {**global_map, **course_map}  # degree courses take priority
 
     # Expand completed set: infer all implied prerequisites from transcript courses
-    normalized_completed = expand_completed_with_prereqs(normalized_completed, course_map)
+    normalized_completed = expand_completed_with_prereqs(normalized_completed, merged_map)
 
     eligible = dict()
     for course in all_courses:
-        c_id = normalize_code(course['Course_Num'])
+        c_id = normalize_code(course['course_id'])
         if c_id in normalized_completed or c_id in eligible:
             continue
-        if is_course_eligible(course, normalized_completed, course_map):
+        if is_course_eligible(course, normalized_completed, merged_map):
             eligible[c_id] = course
-            coreqs = course.get('Co_Requisites', '').strip()
-            if coreqs and coreqs.lower() != 'none':
-                coreq_list = [normalize_code(cc) for cc in coreqs.split(',') if cc.strip()]
-                for ccode in coreq_list:
-                    if ccode not in normalized_completed and ccode in course_map and ccode not in eligible:
-                        co_course = course_map[ccode]
-                        if is_course_eligible(co_course, normalized_completed, course_map):
-                            eligible[ccode] = co_course
+            coreqs = course.get('co_requisites', '') or ''
+            coreq_list = parse_prereq_string(coreqs)
+            for ccode in coreq_list:
+                if ccode not in normalized_completed and ccode in merged_map and ccode not in eligible:
+                    co_course = merged_map[ccode]
+                    if is_course_eligible(co_course, normalized_completed, merged_map):
+                        eligible[ccode] = co_course
 
-    # Either/or rules: ENGR 1101 and UNIV are alternatives — only need one
+    # Either/or rules: ENGR 1101 and UNIV are alternatives -- only need one
     completed_univ = any(c.startswith('UNIV') for c in normalized_completed)
     completed_engr1101 = 'ENGR 1101' in normalized_completed
     if completed_univ:
@@ -124,6 +224,21 @@ def filter_eligible_courses_unique(all_courses, completed_courses):
                 eligible.pop(code, None)
 
     return eligible
+
+
+def get_elective_budgets(all_courses):
+    """
+    Build elective budget dict from degree courses.
+    Returns {group_name: hours_required} — e.g. {'technical': 15, 'security': 3}
+    """
+    budgets = {}
+    for c in all_courses:
+        if c.get('requirement_type') == 'elective' and c.get('elective_group'):
+            group = c['elective_group']
+            hrs = c.get('elective_hours') or 0
+            budgets[group] = hrs  # all courses in same group have same target
+    return budgets
+
 
 def generate_degree_plan(
     all_courses,
@@ -140,18 +255,6 @@ def generate_degree_plan(
     Uses greedy topological scheduling: each semester, pick eligible courses
     prioritized by unlock potential (how many other courses depend on this one),
     required-first, and fill up to credit hour target.
-
-    Args:
-        all_courses: list of course dicts from get_department_courses()
-        completed_courses: list of completed course code strings
-        credits_per_semester: target credit hours per semester (e.g. 15)
-        selected_next: optional list of course codes the user picked for semester 1
-        start_semester: "Fall", "Spring", or "Summer" — when to begin planning
-        start_year: integer year to start from (e.g. 2026)
-        include_summer: whether to schedule summer semesters
-
-    Returns:
-        list of semester dicts: [{semester, label, courses: [{code, name, creditHours, requirement}], totalHours}]
     """
 
     # --- Semester label generator ---
@@ -161,20 +264,7 @@ def generate_degree_plan(
             idx = order.index(start_sem)
         except ValueError:
             idx = 0
-        current_year = [start_yr]  # use list so nested func can mutate
 
-        def next_label():
-            sem = order[idx]
-            label = f"{sem} {current_year[0]}"
-            next_idx = (idx + 1) % len(order)
-            # Year increments after Fall (Fall is the last semester of an academic year)
-            if sem == 'Fall':
-                current_year[0] += 1
-            # update idx via closure trick
-            _make_label_generator.idx = next_idx
-            return label
-
-        # Wrap to update idx properly using a mutable container
         state = {'idx': idx, 'year': start_yr}
 
         def next_label_stateful():
@@ -192,9 +282,12 @@ def generate_degree_plan(
     _effective_start_year = start_year or 2026
     get_next_label = _make_label_generator(_effective_start_sem, _effective_start_year, include_summer)
 
-    course_map = {normalize_code(c['Course_Num']): c for c in all_courses}
+    course_map = {normalize_code(c['course_id']): c for c in all_courses}
+    global_map = _build_global_course_map()
+    merged_map = {**global_map, **course_map}
+
     normalized_completed = set(normalize_code(c) for c in completed_courses)
-    normalized_completed = expand_completed_with_prereqs(normalized_completed, course_map)
+    normalized_completed = expand_completed_with_prereqs(normalized_completed, merged_map)
 
     # Apply ENGR 1101 / UNIV either-or rule
     completed_univ = any(c.startswith('UNIV') for c in normalized_completed)
@@ -203,10 +296,7 @@ def generate_degree_plan(
     # Build remaining courses set (not yet completed)
     remaining = {}
     for course in all_courses:
-        code = normalize_code(course['Course_Num'])
-        # Skip placeholders like "CE 43XX"
-        if 'X' in code.split()[-1] if len(code.split()) == 2 else False:
-            continue
+        code = normalize_code(course['course_id'])
         if code not in normalized_completed:
             remaining[code] = course
 
@@ -218,35 +308,96 @@ def generate_degree_plan(
             if code.startswith('UNIV'):
                 remaining.pop(code, None)
 
-    # Filter electives to only include user-chosen ones (if provided)
-    if chosen_electives is not None:
+    # Add prerequisite courses not in the degree plan but needed to unlock degree courses.
+    # Without this, courses with external prereqs (e.g. CHEM 1441 for EE) get stuck
+    # in a "Remaining" deadlock because the prereq is never scheduled.
+    # Track already-processed codes to prevent infinite loops on cyclic prereqs.
+    seen_prereqs = set(remaining.keys()) | normalized_completed
+    added = True
+    while added:
+        added = False
+        for code in list(remaining):
+            course = remaining[code]
+            for prereq in parse_prereq_string(course.get('pre_requisites', '') or ''):
+                if prereq not in seen_prereqs:
+                    seen_prereqs.add(prereq)
+                    prereq_course = merged_map.get(prereq)
+                    if prereq_course:
+                        remaining[prereq] = {
+                            **prereq_course,
+                            'requirement_type': 'required',
+                            'elective_group': None,
+                            'elective_hours': None,
+                        }
+                        added = True
+            for coreq in parse_prereq_string(course.get('co_requisites', '') or ''):
+                if coreq not in seen_prereqs:
+                    seen_prereqs.add(coreq)
+                    coreq_course = merged_map.get(coreq)
+                    if coreq_course:
+                        remaining[coreq] = {
+                            **coreq_course,
+                            'requirement_type': 'required',
+                            'elective_group': None,
+                            'elective_hours': None,
+                        }
+                        added = True
+
+    # Filter electives to only include user-chosen ones (if provided and non-empty),
+    # or auto-cap to budget per group when not provided / empty
+    if chosen_electives is not None and len(chosen_electives) > 0:
         chosen_normalized = set(normalize_code(c) for c in chosen_electives)
         for code in list(remaining):
             course = remaining[code]
-            if course.get('Requirement', 'required').lower() == 'elective':
+            if course.get('requirement_type', 'required').lower() == 'elective':
                 if code not in chosen_normalized:
                     remaining.pop(code)
+    else:
+        # Auto-cap: keep only enough electives per group to fill the budget
+        elective_budgets = get_elective_budgets(all_courses)
+        group_hours_remaining = dict(elective_budgets)
+        # First subtract completed elective hours
+        for c in all_courses:
+            if c.get('requirement_type') == 'elective' and c.get('elective_group'):
+                code = normalize_code(c['course_id'])
+                if code in normalized_completed:
+                    grp = c['elective_group']
+                    if grp in group_hours_remaining:
+                        group_hours_remaining[grp] = max(0, group_hours_remaining[grp] - c.get('credit_hours', 3))
+        # Then keep electives up to remaining budget, remove extras
+        # Sort by code for deterministic selection
+        elective_codes = sorted(
+            [c for c in remaining if remaining[c].get('requirement_type', 'required').lower() == 'elective']
+        )
+        group_hours_kept = {}
+        for code in elective_codes:
+            course = remaining[code]
+            grp = course.get('elective_group', 'other')
+            budget = group_hours_remaining.get(grp, 0)
+            kept = group_hours_kept.get(grp, 0)
+            hrs = course.get('credit_hours', 3)
+            if kept < budget:
+                group_hours_kept[grp] = kept + hrs
+            else:
+                remaining.pop(code)
 
     # Build reverse dependency map: for each course, how many other courses need it as a prereq
     unlock_count = {}
     for code, course in remaining.items():
-        prereqs = course.get('Pre_Requisites', '').strip()
-        if prereqs and prereqs.lower() != 'none':
-            for p in [normalize_code(x) for x in prereqs.split(',') if x.strip()]:
-                unlock_count[p] = unlock_count.get(p, 0) + 1
+        prereqs = course.get('pre_requisites', '') or ''
+        for p in parse_prereq_string(prereqs):
+            unlock_count[p] = unlock_count.get(p, 0) + 1
 
     def get_credit_hours(course):
-        hrs = course.get('Credit_Hours', 3)
+        hrs = course.get('credit_hours', 3)
         try:
             return int(hrs)
         except (ValueError, TypeError):
             return 3
 
     def get_coreqs(course):
-        coreqs = course.get('Co_Requisites', '').strip()
-        if not coreqs or coreqs.lower() == 'none':
-            return []
-        return [normalize_code(c) for c in coreqs.split(',') if c.strip()]
+        coreqs = course.get('co_requisites', '') or ''
+        return parse_prereq_string(coreqs)
 
     planned_completed = set(normalized_completed)
     semesters = []
@@ -258,29 +409,45 @@ def generate_degree_plan(
         # Find all currently eligible courses from remaining
         eligible = []
         for code, course in remaining.items():
-            if is_course_eligible(course, planned_completed, course_map):
+            if is_course_eligible(course, planned_completed, merged_map):
                 eligible.append(code)
 
         if not eligible:
-            # Deadlock: remaining courses exist but none eligible (missing external prereqs)
-            # Add them as a final "remaining" bucket
-            leftover = []
-            for code in list(remaining):
-                c = remaining[code]
-                leftover.append({
-                    'code': code,
-                    'name': c.get('Course_Name', ''),
-                    'creditHours': get_credit_hours(c),
-                    'requirement': c.get('Requirement', 'required'),
-                })
-            if leftover:
-                semesters.append({
-                    'semester': semester_num,
-                    'label': 'Remaining (prerequisites not in degree plan)',
-                    'courses': leftover,
-                    'totalHours': sum(c['creditHours'] for c in leftover),
-                })
-            break
+            # Detect circular prerequisites: find courses whose only unmet
+            # prereqs are each other (e.g. CE 3131 ↔ CE 3334).  These are
+            # almost certainly co-requisites mislabeled in the data — break
+            # the cycle by scheduling them together.
+            cycle_courses = set()
+            for code in remaining:
+                prereqs = parse_prereq_string(remaining[code].get('pre_requisites', '') or '')
+                unmet = [p for p in prereqs if p not in planned_completed and p in remaining]
+                # All unmet prereqs are in remaining — potential cycle member
+                if unmet and all(p in remaining for p in unmet):
+                    cycle_courses.add(code)
+
+            if cycle_courses:
+                # Treat cycle members as eligible this semester
+                eligible = list(cycle_courses)
+            else:
+                # True deadlock: remaining courses exist but none eligible
+                leftover = []
+                for code in list(remaining):
+                    c = remaining[code]
+                    leftover.append({
+                        'code': code,
+                        'name': c.get('course_name', ''),
+                        'creditHours': get_credit_hours(c),
+                        'requirement': c.get('requirement_type', 'required'),
+                        'electiveGroup': c.get('elective_group'),
+                    })
+                if leftover:
+                    semesters.append({
+                        'semester': semester_num,
+                        'label': 'Remaining (prerequisites not in degree plan)',
+                        'courses': leftover,
+                        'totalHours': sum(c['creditHours'] for c in leftover),
+                    })
+                break
 
         # Semester 1: use user's picks if provided
         if semester_num == 1 and selected_next:
@@ -297,7 +464,7 @@ def generate_degree_plan(
             # Sort eligible by: required first, then unlock potential (desc), then credit hours (desc)
             def sort_key(code):
                 c = remaining[code]
-                is_required = 1 if c.get('Requirement', '').lower() == 'required' else 0
+                is_required = 1 if c.get('requirement_type', '').lower() == 'required' else 0
                 unlocks = unlock_count.get(code, 0)
                 hrs = get_credit_hours(c)
                 return (-is_required, -unlocks, -hrs)
@@ -308,6 +475,8 @@ def generate_degree_plan(
             semester_hours = 0
 
             for code in eligible:
+                if code in semester_courses:
+                    continue  # already added as a corequisite
                 c = remaining[code]
                 hrs = get_credit_hours(c)
 
@@ -320,8 +489,17 @@ def generate_degree_plan(
                         coreq_hours += get_credit_hours(remaining[coreq])
                         coreq_codes.append(coreq)
 
+                # Also check reverse: if any course already in this semester
+                # lists this course as a corequisite, pair them together
+                for scheduled in list(semester_courses):
+                    for coreq in get_coreqs(remaining.get(scheduled, {})):
+                        if coreq in remaining and coreq not in semester_courses and coreq not in coreq_codes:
+                            if coreq == code or coreq in eligible:
+                                coreq_hours += get_credit_hours(remaining[coreq])
+                                coreq_codes.append(coreq)
+
                 total_add = hrs + coreq_hours
-                if semester_hours + total_add <= credits_per_semester + 1:  # +1 for slight flexibility
+                if semester_hours + total_add <= credits_per_semester:
                     semester_courses.append(code)
                     semester_courses.extend(coreq_codes)
                     semester_hours += total_add
@@ -329,9 +507,12 @@ def generate_degree_plan(
                 if semester_hours >= credits_per_semester:
                     break
 
-            # If nothing was picked (all remaining too big), force at least one
+            # If nothing was picked, force at least one (with its coreqs)
             if not semester_courses and eligible:
                 semester_courses.append(eligible[0])
+                for coreq in get_coreqs(remaining.get(eligible[0], {})):
+                    if coreq in remaining and coreq not in semester_courses:
+                        semester_courses.append(coreq)
 
         # Deduplicate while preserving order
         seen = set()
@@ -349,9 +530,10 @@ def generate_degree_plan(
             c = remaining[code]
             course_list.append({
                 'code': code,
-                'name': c.get('Course_Name', ''),
+                'name': c.get('course_name', ''),
                 'creditHours': get_credit_hours(c),
-                'requirement': c.get('Requirement', 'required'),
+                'requirement': c.get('requirement_type', 'required'),
+                'electiveGroup': c.get('elective_group'),
             })
 
         total_hrs = sum(c['creditHours'] for c in course_list)
@@ -379,11 +561,11 @@ def get_professor_offerings_for_course(course_code):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = [row[0] for row in cur.fetchall() if not row[0].startswith('sqlite')] # skip any sqlite internal tables
+    tables = [row[0] for row in cur.fetchall() if not row[0].startswith('sqlite')]
     offerings = []
     parts = course_code.split()
     if len(parts) != 2:
-        return []  # skip elective placeholders like "CE 43XX", "HIST 13XX", "LPC XXXX"
+        return []
     subj, num = parts
     for tbl in tables:
         safe_tbl = f'"{tbl}"' if ('-' in tbl or ' ' in tbl) else tbl
@@ -404,53 +586,34 @@ def get_professor_offerings_for_course(course_code):
     conn.close()
     return offerings
 
-def print_prof_recs_for_course(course_code, course_name, completed):
-    offerings = get_professor_offerings_for_course(course_code)
-    seen = set()
-    if not offerings:
-        print("    No professor data available (was this course not offered recently?)")
-        return
-    print(f"    Professors (from recent terms):")
-    for offer in offerings:
-        for prof in offer['instructors']:
-            if prof in seen:
-                continue
-            seen.add(prof)
-            gpa = offer['course_gpa']
-            year = offer['year']
-            sem = offer['semester']
-            sem_label = f"{year} {sem}" if year and sem else "n/a"
-            print(f"        - {prof} | Recent GPA: {gpa} | Term: {sem_label}")
 
 def run_local_demo():
     """Run this for local testing with sample_transcript.pdf"""
-    dept = 'CE'
+    dept = 'CS'
     all_courses = get_department_courses(dept)
     print(f"Loaded {len(all_courses)} course/professor offerings for {dept} department.")
-    
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     pdf_path = os.path.abspath(os.path.join(script_dir, '../../data/sample_transcript.pdf'))
-    
+
     if not os.path.exists(pdf_path):
         print(f"PDF transcript not found at: {pdf_path}")
         completed = []
     else:
         completed = extract_all_courses(pdf_path)
-    
+
     print(f"Completed courses from transcript: {completed}")
-    
+
     eligible = filter_eligible_courses_unique(all_courses, completed)
-    print(f"Eligible courses (not yet taken, prereqs/coreqs satisfied): {len(eligible)})")
-    
+    print(f"Eligible courses (not yet taken, prereqs/coreqs satisfied): {len(eligible)}")
+
     for code, e in list(eligible.items()):
-        print(f"{code}: {e['Course_Name']}")
-        co_req = e.get('Co_Requisites', '').strip()
-        if co_req and co_req.lower() != 'none':
-            co_req_list = [normalize_code(c) for c in co_req.split(',') if c.strip()]
-            remaining_coreqs = [c for c in co_req_list if c not in completed]
-            if remaining_coreqs:
-                print(f"    Co-requisite(s): {', '.join(remaining_coreqs)}")
-        print_prof_recs_for_course(code, e['Course_Name'], completed)
+        print(f"{code}: {e['course_name']}")
+        co_req = e.get('co_requisites', '') or ''
+        coreq_list = parse_prereq_string(co_req)
+        remaining_coreqs = [c for c in coreq_list if c not in completed]
+        if remaining_coreqs:
+            print(f"    Co-requisite(s): {', '.join(remaining_coreqs)}")
 
 if __name__ == "__main__":
     run_local_demo()
@@ -458,10 +621,13 @@ if __name__ == "__main__":
 # Export functions for API use
 __all__ = [
     'get_department_courses',
+    'get_core_curriculum',
+    'get_degree_info',
+    'get_elective_budgets',
     'filter_eligible_courses_unique',
     'get_professor_offerings_for_course',
     'generate_degree_plan',
+    'parse_prereq_string',
     'extract_all_courses',
     'normalize_code'
 ]
-

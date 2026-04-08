@@ -8,7 +8,7 @@
  */
 
 export interface DegreeInfo {
-  code: string; // e.g. 'CSE' — maps to ClassesFor{code} DB table
+  code: string; // e.g. 'CS' — maps to degree_id in smart_advisors.db
   name: string; // e.g. 'Computer Science'
 }
 
@@ -21,11 +21,20 @@ export const COLLEGES: Record<string, CollegeInfo> = {
   engineering: {
     name: 'College of Engineering',
     degrees: [
+      { code: 'AE', name: 'Aerospace Engineering' },
+      { code: 'AREN', name: 'Architectural Engineering' },
+      { code: 'BE(I)', name: 'Biomedical Engineering (Imaging)' },
+      { code: 'BE(T)', name: 'Biomedical Engineering (Tissue)' },
       { code: 'CE', name: 'Civil Engineering' },
-      { code: 'CSE', name: 'Computer Science' },
+      { code: 'CM', name: 'Construction Management' },
+      { code: 'CpE', name: 'Computer Engineering' },
+      { code: 'CS', name: 'Computer Science' },
+      // { code: 'CSE', name: 'Computer Science & Engineering' },  // no degree_courses data yet
       { code: 'EE', name: 'Electrical Engineering' },
       { code: 'IE', name: 'Industrial Engineering' },
-      { code: 'MAE', name: 'Mechanical & Aerospace Engineering' },
+      // { code: 'MAE', name: 'Mechanical & Aerospace Engineering' },  // no degree_courses data yet
+      { code: 'ME', name: 'Mechanical Engineering' },
+      { code: 'SE', name: 'Software Engineering' },
     ],
   },
   // ── Future colleges ──────────────────────────────────────────

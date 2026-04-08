@@ -1,0 +1,8 @@
+Formal Name,Course Name,Prerequisites,Corequisites,Requirement
+GREK 1441,GREEK LEVEL I,[None],[None],required
+GREK 1442,GREEK LEVEL II,['GREK 1441'],[None],required
+GREK 2313,GREEK LEVEL III,['GREK 1442'],[None],required
+GREK 2314,GREEK LEVEL IV,['GREK 2313'],[None],required
+GREK 4335,TOPICS IN GREEK LITERATURE,[None],[None],required
+GREK 4391,CONFERENCE COURSE,[None],[None],required
+GREK 5391,CONFERENCE COURSE IN GREEK,[None],[None],required

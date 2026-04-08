@@ -1,0 +1,4 @@
+Formal Name,Course Name,Prerequisites,Corequisites,Requirement
+HRMN 3320,HUMAN RESOURCE MANAGEMENT,[None],[None],required
+HRMN 4320,EMPLOYMENT LAW,[None],[None],required
+HRMN 4328,HUMAN RESOURCE STAFFING AND PERFORMANCE MANAGEMENT,['MANA 3318'],[None],required

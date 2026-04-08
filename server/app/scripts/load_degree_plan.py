@@ -28,11 +28,16 @@ import sqlite3
 
 
 DEPT_TO_CSV = {
-    'CE':  'CE Degree Plan CSV.csv',
-    'CSE': 'CSE Degree Plan CSV.csv',
-    'EE':  'EE Degree Plan CSV.csv',
-    'MAE': 'MAE Degree Plan CSV.csv',
-    'IE':  'IE Degree Plan CSV.csv',
+    'AE':   'AE Degree Plan CSV.csv',
+    'AREN': 'AREN Degree Plan CSV.csv',
+    'BE':   'BE Degree Plan CSV.csv',
+    'CE':   'CE Degree Plan CSV.csv',
+    'CM':   'CM Degree Plan CSV.csv',
+    'CSE':  'CSE Degree Plan CSV.csv',
+    'EE':   'EE Degree Plan CSV.csv',
+    'IE':   'IE Degree Plan CSV.csv',
+    'MAE':  'MAE Degree Plan CSV.csv',
+    'ME':   'ME Degree Plan CSV.csv',
 }
 
 

@@ -1,4 +1,4 @@
-import { ArrowLeft, Compass } from 'lucide-react';
+import { ArrowLeft, Compass, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useGoogleLogin } from '@react-oauth/google';
 
@@ -9,9 +9,45 @@ export interface GoogleUser {
 }
 
 interface LoginPageProps {
+  googleOAuthEnabled: boolean;
   onGuestContinue: () => void;
   onLogin: (user: GoogleUser) => void;
   onBack: () => void;
+}
+
+function GoogleSignInButton({ onLogin }: { onLogin: (user: GoogleUser) => void }) {
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const userInfo = await res.json();
+        onLogin({
+          name: userInfo.name,
+          email: userInfo.email,
+          picture: userInfo.picture,
+        });
+      } catch {
+        alert('Failed to get user info. Please try again.');
+      }
+    },
+    onError: () => {
+      alert('Google sign-in failed. Please try again.');
+    },
+  });
+
+  return (
+    <motion.button
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={() => googleLogin()}
+      className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm transition-colors"
+    >
+      <GoogleIcon />
+      Continue with Google
+    </motion.button>
+  );
 }
 
 function GitHubIcon() {
@@ -44,32 +80,7 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPageProps) {
-  const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim();
-
-  const googleLogin = clientId
-    ? useGoogleLogin({
-        onSuccess: async (tokenResponse) => {
-          try {
-            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-            });
-            const userInfo = await res.json();
-            onLogin({
-              name: userInfo.name,
-              email: userInfo.email,
-              picture: userInfo.picture,
-            });
-          } catch {
-            alert('Failed to get user info. Please try again.');
-          }
-        },
-        onError: () => {
-          alert('Google sign-in failed. Please try again.');
-        },
-      })
-    : null;
-
+export default function LoginPage({ googleOAuthEnabled, onGuestContinue, onLogin, onBack }: LoginPageProps) {
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <motion.div
@@ -102,16 +113,24 @@ export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPag
 
           {/* Google Sign-In (real) */}
           <div className="space-y-3 mb-6">
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => googleLogin?.()}
-              disabled={!googleLogin}
-              className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/[0.08]"
-            >
-              <GoogleIcon />
-              {googleLogin ? 'Continue with Google' : 'Google sign-in unavailable (missing client ID)'}
-            </motion.button>
+            {googleOAuthEnabled ? (
+              <GoogleSignInButton onLogin={onLogin} />
+            ) : (
+              <div>
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  disabled
+                  className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.04] text-white/30 font-semibold text-sm cursor-not-allowed"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </motion.button>
+                <p className="text-xs text-yellow-300/80 mt-2">
+                  Google sign-in is unavailable. Set VITE_GOOGLE_CLIENT_ID in your .env and restart Vite.
+                </p>
+              </div>
+            )}
 
             {/* GitHub and Microsoft — coming soon placeholders */}
             <motion.button
@@ -155,6 +174,14 @@ export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPag
           <p className="text-center text-white/30 text-xs mt-4">
             Guest users get professor recommendations. Sign in for full degree planning.
           </p>
+
+          {/* Privacy note */}
+          <div className="mt-5 flex items-start gap-2 bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3">
+            <Shield className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+            <p className="text-white/40 text-xs leading-relaxed">
+              We only access your name and profile picture. Your data is stored in your browser only — nothing is saved on our servers.
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>

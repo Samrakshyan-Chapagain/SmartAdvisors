@@ -1,0 +1,32 @@
+Formal Name,Course Name,Prerequisites,Corequisites,Requirement
+DNCE 1131,BALLROOM DANCE,[None],[None],required
+DNCE 1132,MODERN DANCE I,[None],[None],required
+DNCE 1133,AFRICAN DIASPORA DANCE: FOUNDATIONS AND EXPLORATIONS,[None],[None],required
+DNCE 1134,TAP DANCE,[None],[None],required
+DNCE 1135,BALLET I,[None],[None],required
+DNCE 1136,JAZZ DANCE I,[None],[None],required
+DNCE 1137,HIP-HOP DANCE,[None],[None],required
+DNCE 1138,DANCE IMPROVISATION AND PARTNERING,[None],[None],required
+DNCE 1139,DANCE PERFORMANCE I,[None],[None],required
+DNCE 1142,DANCE CONDITIONING,[None],[None],required
+DNCE 1300,DANCE APPRECIATION,[None],[None],required
+DNCE 2139,DANCE PERFORMANCE II,[None],[None],required
+DNCE 2238,DANCE COMPOSITION,[None],[None],required
+DNCE 3232,MODERN DANCE II,['DNCE 1132'],[None],required
+DNCE 3233,DANCE FOR MUSICAL THEATRE,[None],[None],required
+DNCE 3234,TAP DANCE II,['DNCE 1134'],[None],required
+DNCE 3235,BALLET II,['DNCE 1135'],[None],required
+DNCE 3236,JAZZ DANCE II,['DNCE 1136'],[None],required
+DNCE 3238,STAGE CHOREOGRAPHY,"['DNCE 2139', 'DNCE 2238']",[None],required
+DNCE 3301,DANCE HISTORY,[None],[None],required
+DNCE 3307,DANCE FOR CAMERA AND ALTERNATIVE SPACES,[None],[None],required
+DNCE 3308,21st CENTURY DANCE,[None],[None],required
+DNCE 3309,DANCE IN WORLD CULTURES,[None],[None],required
+DNCE 3340,DESIGN AND TECHNOLOGY FOR DANCE,[None],[None],required
+DNCE 3341,DANCE PORTFOLIO,[None],[None],required
+DNCE 3342,EXPERIENTIAL ANATOMY FOR DANCE,[None],[None],required
+DNCE 4191,CONFERENCE COURSE,[None],[None],required
+DNCE 4232,MODERN DANCE III,['DNCE 3232'],[None],required
+DNCE 4235,BALLET III,['DNCE 3235'],[None],required
+DNCE 4291,CONFERENCE COURSE,[None],[None],required
+DNCE 4391,CONFERENCE COURSE,[None],[None],required

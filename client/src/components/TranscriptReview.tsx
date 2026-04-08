@@ -1,4 +1,5 @@
-import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { CheckCircle, ArrowRight, ArrowLeft, BookOpen } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface TranscriptReviewProps {
   courses: string[];
@@ -6,131 +7,60 @@ interface TranscriptReviewProps {
   onBack: () => void;
 }
 
-function groupByDepartment(courses: string[]): { dept: string; courses: string[] }[] {
-  const map = new Map<string, string[]>();
-  for (const c of courses) {
-    const dept = c.split(/\s+/)[0] || c;
-    if (!map.has(dept)) map.set(dept, []);
-    map.get(dept)!.push(c);
-  }
-  return [...map.entries()]
-    .map(([dept, courses]) => ({ dept, courses }))
-    .sort((a, b) => b.courses.length - a.courses.length);
-}
-
 export default function TranscriptReview({ courses, onNext, onBack }: TranscriptReviewProps) {
-  const groups = groupByDepartment(courses);
-
   return (
-    <div className="h-full font-body bg-[var(--bg)] text-[var(--text)] relative overflow-hidden">
-      <div className="sa-page-bg" aria-hidden />
+    <div className="max-w-2xl mx-auto">
+      <button onClick={onBack} className="mb-4 text-white/60 hover:text-white flex items-center gap-2 transition-colors font-semibold">
+        <ArrowLeft className="w-4 h-4" /> Back to Upload
+      </button>
 
-      <div className="relative z-10 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-themed">
-        <div className="flex-shrink-0 px-6 py-2.5">
-          <button onClick={onBack} className="flex items-center gap-2 text-[var(--sub)] hover:text-[var(--text)] transition-colors text-sm font-semibold">
-            <ArrowLeft className="w-4 h-4" /> Back to Upload
-          </button>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/5 backdrop-blur-xl rounded-3xl shadow-xl border border-white/10 overflow-hidden"
+      >
+        <div className="bg-[#0046FF]/10 p-8 border-b border-white/10 text-center">
+            <div className="w-16 h-16 bg-[#0046FF]/20 text-[#0046FF] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-white">Unofficial Transcript Verified</h2>
+            <p className="text-white/60 mt-1">We found <span className="font-bold text-[#0046FF]">{courses.length} courses</span> in your history.</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 flex-1 min-h-0" style={{ gridTemplateRows: 'minmax(0, 1fr)' }}>
-          <div className="relative flex flex-col justify-center px-12 py-6 pb-8 border-r border-[var(--border)]">
-            <div className="absolute right-0 top-[10%] bottom-[10%] w-px bg-gradient-to-b from-transparent via-[rgba(91,124,250,0.3)] via-[rgba(255,107,53,0.2)] to-transparent" />
-            <div className="flex flex-col gap-3 max-w-[480px]">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-[1.5px] bg-[var(--blue)]" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--blue)]">Step 2 of 3</span>
-              </div>
-              <h1 className="font-heading font-extrabold text-[clamp(44px,5.5vw,58px)] leading-[0.98] tracking-[-2.5px]">
-                Transcript
-                <br />
-                <span className="gradient-text">verified.</span>
-              </h1>
-              <p className="text-[16px] font-normal text-[var(--sub)] leading-[1.7] max-w-[360px]">
-                We found <span className="font-bold text-[var(--blue)]">{courses.length} courses</span> in your history. Next, tell us your preferences so we can match you with the right professors.
-              </p>
-              <div className="flex flex-col gap-2.5 mt-1">
-                {[
-                  { num: 1, name: 'Upload Transcript', desc: "Your unofficial PDF from MyMav", active: false },
-                  { num: 2, name: 'Set Preferences', desc: 'Tell us what matters to you', active: true },
-                  { num: 3, name: 'Get Matches', desc: 'Curated courses + professors', active: false },
-                ].map((s) => (
-                  <div key={s.num} className="st-item flex items-start gap-4">
-                    <div
-                      className="relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold"
-                      style={{
-                        background: s.active ? 'rgba(91,124,250,0.1)' : 'var(--s1)',
-                        border: '1.5px solid',
-                        borderColor: s.active ? 'var(--blue)' : 'var(--border2)',
-                        color: s.active ? 'var(--blue)' : 'var(--sub2)',
-                      }}
-                    >
-                      {s.active && (
-                        <span className="absolute inset-[-4px] rounded-full border border-dashed border-[rgba(91,124,250,0.3)] animate-spin" style={{ animationDuration: '8s' }} />
-                      )}
-                      {s.num}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[14px] font-semibold" style={{ color: s.active ? 'var(--text)' : '#8892b8' }}>{s.name}</span>
-                      <span className="text-[12px] text-[#6b75a8]">{s.desc}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-center min-h-0 overflow-hidden px-12 py-8">
-            <div className="w-full max-w-[520px] mx-auto flex flex-col gap-6">
-              <div className="pb-1 border-b" style={{ borderColor: 'var(--border)' }}>
-                <h3 className="font-heading font-bold text-xl tracking-[-0.3px] text-[var(--text)]">Transcript verified</h3>
-                <p className="text-[var(--sub)] mt-1 text-[15px]">
-                  <span className="font-semibold text-[var(--blue)]">{courses.length} courses</span> from your history
-                </p>
-              </div>
-
-              <div className="flex flex-col min-h-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sub)] mb-4">Completed courses</p>
+        <div className="p-8">
+            <p className="text-sm font-bold text-white/40 uppercase tracking-wider mb-4">Completed Courses</p>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                 {courses.length > 0 ? (
-                  <div className="flex flex-col gap-5 overflow-y-auto scrollbar-themed pr-1 max-h-[320px]">
-                    {groups.map(({ dept, courses: deptCourses }) => (
-                      <div key={dept} className="flex flex-col gap-2">
-                        <span className="text-[12px] font-semibold text-[var(--blue)]">{dept} ({deptCourses.length})</span>
-                        <div className="flex flex-wrap gap-2">
-                          {deptCourses.map((course) => (
-                            <span
-                              key={course}
-                              className="py-1.5 px-2.5 rounded-lg text-[13px] font-medium text-[var(--text)]"
-                              style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)' }}
-                            >
-                              {course}
-                            </span>
-                          ))}
+                    courses.map((course, index) => (
+                        <div key={index} className="flex items-center gap-2 bg-white/5 p-3 rounded-xl border border-white/5 shadow-sm">
+                            <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                            <span className="font-bold text-white text-sm">{course}</span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                    ))
                 ) : (
-                  <p className="text-[var(--sub)] text-sm italic">No courses found.</p>
+                    <div className="col-span-3 text-center py-8 text-white/30 italic">
+                        No courses found. Are you sure this is an unofficial transcript?
+                    </div>
                 )}
-              </div>
-
-              <button
-                type="button"
-                onClick={onNext}
-                className="relative w-full py-3.5 rounded-xl font-heading font-bold text-[15px] tracking-[-0.3px] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] group overflow-hidden hover:-translate-y-0.5 hover:opacity-[0.98]"
-                style={{
-                  background: 'linear-gradient(135deg, var(--blue), var(--blue2), var(--orange2))',
-                  boxShadow: '0 4px 28px rgba(91,124,250,0.25), 0 2px 12px rgba(255,107,53,0.15)',
-                }}
-              >
-                <span className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.1), transparent 60%)' }} />
-                <span className="relative z-10">Continue to Preferences</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform relative z-10" />
-              </button>
             </div>
-          </div>
+
+            <button
+                onClick={onNext}
+                disabled={courses.length === 0}
+                className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-lg group ${
+                  courses.length === 0
+                    ? 'bg-white/10 text-white/30 cursor-not-allowed shadow-none'
+                    : 'bg-[#0046FF] hover:bg-[#0036CC] text-white shadow-[#0046FF]/30'
+                }`}
+            >
+                {courses.length === 0
+                  ? 'Upload a valid unofficial transcript to continue'
+                  : <>Continue to Preferences <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></>
+                }
+            </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
