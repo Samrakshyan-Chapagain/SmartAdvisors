@@ -1372,3 +1372,991 @@ h1, h2, h3, h4, h5, h6 {
     justify-content: center;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD SHELL — Stage 1: Layout + Sidebar
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Design tokens (dashboard-specific) ── */
+:root {
+  --ds-bg:        #07080f;
+  --ds-sidebar:   #0d0f1a;
+  --ds-card:      #13152a;
+  --ds-text:      #eef0ff;
+  --ds-muted:     #8892b8;
+  --ds-purple:    #5b7cfa;
+  --ds-orange:    #ff6b35;
+  --ds-green:     #22c55e;
+  --ds-border:    rgba(255, 255, 255, 0.07);
+}
+
+/* ── Shell ── */
+.ds-shell {
+  min-height: 100vh;
+  background: var(--ds-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Atmospheric glows ── */
+.ds-glow {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+}
+.ds-glow-1 {
+  top: 0;
+  right: 0;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(ellipse at center,
+    rgba(91, 124, 250, 0.10) 0%, transparent 70%);
+}
+.ds-glow-2 {
+  bottom: 0;
+  left: 220px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(ellipse at center,
+    rgba(255, 107, 53, 0.07) 0%, transparent 70%);
+}
+
+/* ── Main content area ── */
+.ds-main {
+  margin-left: 220px;
+  min-height: 100vh;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+}
+.ds-main-inner {
+  padding: 32px 36px;
+  max-width: 100%;
+}
+
+/* ── Sidebar ── */
+.ds-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 220px;
+  background: var(--ds-sidebar);
+  border-right: 1px solid var(--ds-border);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+.ds-sidebar-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(91,124,250,0.04) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+.ds-sidebar-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+/* Logo row */
+.ds-sidebar-top {
+  display: flex;
+  flex-direction: column;
+}
+.ds-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 20px 32px;
+}
+.ds-logo-icon {
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ds-logo-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  background: var(--ds-orange);
+  border-radius: 50%;
+}
+.ds-logo-label {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: white;
+  white-space: nowrap;
+}
+
+/* Nav */
+.ds-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+.ds-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ds-muted);
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  width: 100%;
+  text-align: left;
+  border-left: 3px solid transparent;
+}
+.ds-nav-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ds-text);
+}
+.ds-nav-link .ds-nav-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+/* Active state */
+.ds-nav-active {
+  background: rgba(91, 124, 250, 0.12);
+  border-left-color: var(--ds-purple);
+  color: var(--ds-text);
+}
+.ds-nav-active:hover {
+  background: rgba(91, 124, 250, 0.16);
+}
+.ds-nav-active .ds-nav-icon {
+  color: var(--ds-purple);
+}
+
+/* "Soon" badge */
+.ds-soon-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--ds-muted);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 1px 6px;
+  line-height: 1.4;
+}
+
+/* User row */
+.ds-user-row {
+  border-top: 1px solid var(--ds-border);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ds-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.ds-user-avatar-fallback {
+  background: var(--ds-purple);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+.ds-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.ds-user-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ds-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-user-role {
+  font-size: 11px;
+  color: var(--ds-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-signout-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ds-muted);
+  padding: 4px;
+  transition: color 150ms;
+  flex-shrink: 0;
+}
+.ds-signout-btn:hover {
+  color: var(--ds-orange);
+}
+
+/* ── Mobile bottom tabs ── */
+.ds-mobile-tabs {
+  display: none;
+}
+
+/* ── Responsive: Tablet ── */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .ds-sidebar {
+    width: 56px;
+  }
+  .ds-sidebar-text {
+    display: none;
+  }
+  .ds-logo-row {
+    justify-content: center;
+    padding: 20px 0 24px;
+  }
+  .ds-nav-link {
+    justify-content: center;
+    padding: 10px;
+    margin: 0 4px;
+    border-left-width: 0;
+  }
+  .ds-nav-active {
+    border-left-width: 0;
+  }
+  .ds-user-row {
+    justify-content: center;
+    padding: 16px 10px;
+  }
+  .ds-main {
+    margin-left: 56px;
+  }
+  .ds-main-inner {
+    padding: 24px 20px;
+  }
+  .ds-glow-2 {
+    left: 56px;
+  }
+}
+
+/* ── Responsive: Mobile ── */
+@media (max-width: 767px) {
+  .ds-sidebar {
+    display: none;
+  }
+  .ds-main {
+    margin-left: 0;
+    padding-bottom: 72px;
+  }
+  .ds-main-inner {
+    padding: 16px;
+  }
+  .ds-glow-2 {
+    left: 0;
+  }
+  .ds-mobile-tabs {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--ds-sidebar);
+    border-top: 1px solid var(--ds-border);
+    z-index: 50;
+    align-items: center;
+    justify-content: space-around;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .ds-mobile-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ds-muted);
+    padding: 6px 8px;
+  }
+  .ds-mobile-tab-active {
+    color: var(--ds-purple);
+  }
+  .ds-mobile-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD — Stage 2: Header + Stat Cards
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Header ── */
+.ds-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.ds-header-title {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ds-text);
+  margin: 0 0 4px;
+}
+.ds-header-subtitle {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--ds-muted);
+  margin: 0;
+}
+.ds-header-cta {
+  background: linear-gradient(90deg, #0046FF, #FF8040);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 24px;
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.ds-header-cta:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(0, 70, 255, 0.3);
+}
+
+/* ── Stat Cards Grid ── */
+.ds-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* Card entrance animation */
+@keyframes dsStatIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ds-stat-card {
+  background: var(--ds-card);
+  border-radius: 14px;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+/* Top accent bar */
+.ds-stat-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+.ds-stat-accent-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ds-stat-accent-bar[data-color="#5b7cfa"] { background: #5b7cfa; }
+.ds-stat-accent-bar[data-color="#ff6b35"] { background: #ff6b35; }
+.ds-stat-accent-bar[data-color="#8892b8"] { background: #8892b8; }
+.ds-stat-accent-bar[data-color="#22c55e"] { background: #22c55e; }
+
+/* Hover glows */
+.ds-stat-card[data-glow="rgba(91,124,250,0.15)"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(91, 124, 250, 0.15);
+}
+.ds-stat-card[data-glow="rgba(255,107,53,0.15)"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(255, 107, 53, 0.15);
+}
+.ds-stat-card[data-glow="rgba(136,146,184,0.15)"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(136, 146, 184, 0.15);
+}
+.ds-stat-card[data-glow="rgba(34,197,94,0.15)"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(34, 197, 94, 0.15);
+}
+
+/* Label row */
+.ds-stat-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ds-stat-label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--ds-muted);
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+.ds-stat-icon {
+  flex-shrink: 0;
+}
+
+/* Value */
+.ds-stat-value {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--ds-text);
+  line-height: 1;
+}
+
+/* Progress bar (Degree Complete card) */
+.ds-progress-track {
+  margin-top: 12px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.ds-progress-fill {
+  width: 85%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0046FF, #FF8040);
+}
+
+/* ── Responsive: Tablet ── */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .ds-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ds-header-title {
+    font-size: 24px;
+  }
+}
+
+/* ── Responsive: Mobile ── */
+@media (max-width: 767px) {
+  .ds-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .ds-header-title {
+    font-size: 22px;
+  }
+  .ds-header-cta {
+    width: 100%;
+    text-align: center;
+  }
+  .ds-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ds-stat-card {
+    padding: 14px 16px;
+  }
+  .ds-stat-value {
+    font-size: 32px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD — Stage 3: Two-Column Row
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Grid row ── */
+.ds-two-col {
+  display: grid;
+  grid-template-columns: 60fr 40fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* ── Entrance animation ── */
+@keyframes dsRowIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ── Degree Progress Card ── */
+.ds-degree-card {
+  background: var(--ds-card);
+  border-radius: 14px;
+  border: 1px solid var(--ds-border);
+  padding: 24px 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.ds-degree-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ds-degree-title {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+.ds-degree-pct {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #0046FF, #FF8040);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Progress bar */
+.ds-degree-bar-track {
+  margin: 16px 0 24px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.ds-degree-bar-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0046FF, #FF8040);
+  background-size: 200% 100%;
+}
+@keyframes dsShimmer {
+  from { background-position: 0% center; }
+  to   { background-position: 100% center; }
+}
+
+/* Semester rows */
+.ds-semester-list {
+  display: flex;
+  flex-direction: column;
+}
+.ds-semester-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.ds-semester-row:last-child {
+  border-bottom: none;
+}
+
+.ds-semester-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ds-semester-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--ds-text);
+}
+.ds-semester-status {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+}
+.ds-semester-status[data-color="#22c55e"] { color: #22c55e; }
+.ds-semester-status[data-color="#5b7cfa"] { color: #5b7cfa; }
+.ds-semester-status[data-color="#8892b8"] { color: #8892b8; }
+
+/* Spinning dashed circle */
+.ds-spinner-icon {
+  animation: dsSpin 2s linear infinite;
+}
+@keyframes dsSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Up Next Card ── */
+.ds-upnext-card {
+  background: var(--ds-card);
+  border-radius: 14px;
+  border: 1px solid var(--ds-border);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.ds-upnext-label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--ds-muted);
+  letter-spacing: 0.10em;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.ds-upnext-list {
+  display: flex;
+  flex-direction: column;
+}
+.ds-upnext-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 150ms ease;
+  border-radius: 6px;
+}
+.ds-upnext-row:last-child {
+  border-bottom: none;
+}
+.ds-upnext-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Course icon */
+.ds-upnext-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ds-upnext-icon[data-bg="#5b7cfa"] { background: rgba(91, 124, 250, 0.20); }
+.ds-upnext-icon[data-bg="#8b5cf6"] { background: rgba(139, 92, 246, 0.20); }
+.ds-upnext-icon[data-bg="#ff6b35"] { background: rgba(255, 107, 53, 0.20); }
+.ds-upnext-icon[data-bg="#ef4444"] { background: rgba(239, 68, 68, 0.20); }
+.ds-upnext-icon[data-bg="#3b82f6"] { background: rgba(59, 130, 246, 0.20); }
+
+/* Course info */
+.ds-upnext-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.ds-upnext-code {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+.ds-upnext-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--ds-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Credit pill */
+.ds-upnext-cr {
+  background: rgba(91, 124, 250, 0.12);
+  color: #5b7cfa;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Bottom buttons */
+.ds-upnext-actions {
+  margin-top: auto;
+  padding-top: 16px;
+  display: flex;
+  gap: 8px;
+}
+.ds-upnext-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--ds-muted);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+.ds-upnext-btn:hover {
+  border-color: #5b7cfa;
+  color: var(--ds-text);
+}
+
+/* ── Responsive: Stage 3 ── */
+@media (max-width: 1279px) {
+  .ds-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 767px) {
+  .ds-degree-card {
+    padding: 20px;
+  }
+  .ds-upnext-card {
+    padding: 20px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD — Stage 4: Professors + Footer
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Professors Section ── */
+.ds-profs-section {
+  position: relative;
+  margin-bottom: 32px;
+}
+.ds-profs-glow {
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(ellipse at center, rgba(91,124,250,0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.ds-profs-header {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 16px;
+}
+.ds-profs-title {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ds-text);
+  margin: 0 0 4px;
+}
+.ds-profs-subtitle {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--ds-muted);
+  margin: 0;
+}
+
+/* Grid */
+.ds-profs-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+/* Card entrance */
+@keyframes dsProfIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ds-prof-card {
+  background: var(--ds-card);
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 200ms ease, border-color 200ms ease;
+}
+
+.ds-prof-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--prof-accent, rgba(255,255,255,0.15));
+}
+
+/* Top accent bar */
+.ds-prof-accent-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--prof-accent);
+}
+
+/* Avatar + info */
+.ds-prof-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ds-prof-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 2px solid var(--prof-accent, #5b7cfa);
+  background: color-mix(in srgb, var(--prof-accent, #5b7cfa) 13%, transparent);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+.ds-prof-initials {
+  color: var(--prof-accent, #5b7cfa);
+}
+.ds-prof-accent-0 { --prof-accent: #5b7cfa; }
+.ds-prof-accent-1 { --prof-accent: #ff6b35; }
+.ds-prof-accent-2 { --prof-accent: #22c55e; }
+.ds-prof-accent-3 { --prof-accent: #8892b8; }
+.ds-prof-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ds-prof-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+.ds-prof-course {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--ds-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rating */
+.ds-prof-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.ds-prof-rating-num {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ff6b35;
+}
+.ds-prof-rating svg {
+  flex-shrink: 0;
+}
+.ds-prof-reviews {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--ds-muted);
+}
+
+/* View Profile link */
+.ds-prof-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: #5b7cfa;
+  cursor: not-allowed;
+  opacity: 0.6;
+  text-decoration: none;
+}
+
+/* ── Footer Strip ── */
+.ds-footer {
+  margin-top: 48px;
+  border-top: 1px solid var(--ds-border);
+  padding: 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ds-footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--ds-muted);
+  font-weight: 600;
+}
+.ds-footer-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--ds-muted);
+}
+.ds-footer-links {
+  display: flex;
+  gap: 24px;
+}
+.ds-footer-links a {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--ds-muted);
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+.ds-footer-links a:hover {
+  color: var(--ds-text);
+}
+
+/* ── CTA button glow pulse ── */
+@keyframes dsBtnGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(0,70,255,0.25); }
+  50% { box-shadow: 0 0 24px rgba(0,70,255,0.45); }
+}
+.ds-header-cta {
+  animation: dsBtnGlow 3s ease-in-out infinite;
+}
+
+/* ── Hover: all buttons scale ── */
+.ds-upnext-btn:active,
+.ds-footer-links a:active {
+  transform: scale(0.98);
+}
+
+/* ── Responsive: Stage 4 ── */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .ds-profs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .ds-profs-grid {
+    grid-template-columns: 1fr;
+  }
+  .ds-footer {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+}

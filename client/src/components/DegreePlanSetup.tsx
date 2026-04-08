@@ -378,6 +378,8 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
               <select
                 value={startYear}
                 onChange={e => setStartYear(Number(e.target.value))}
+                aria-label="Select start year"
+                title="Select start year"
                 className="bg-white/5 border border-white/10 text-white/80 rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:border-white/30 cursor-pointer"
               >
                 {YEAR_OPTIONS.map(yr => (
@@ -394,6 +396,8 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
           <div className="flex items-center gap-3 mb-1">
             <button
               onClick={() => setIncludeSummer(prev => !prev)}
+              aria-label={includeSummer ? 'Disable summer semesters' : 'Enable summer semesters'}
+              title={includeSummer ? 'Disable summer semesters' : 'Enable summer semesters'}
               className={`relative w-11 h-6 rounded-full transition-colors border flex-shrink-0 ${
                 includeSummer ? 'bg-[#0046FF] border-[#0046FF]' : 'bg-white/10 border-white/20'
               }`}
@@ -606,23 +610,30 @@ function CoursePickCard({ course, selected, onToggle, accent }: {
   onToggle: () => void;
   accent: string;
 }) {
+  const isBlueAccent = accent === '#0046FF';
+  const selectedCardClass = isBlueAccent
+    ? 'border-[#0046FF]/50 bg-[#0046FF]/10 shadow-sm'
+    : 'border-[#FF8040]/50 bg-[#FF8040]/10 shadow-sm';
+  const selectedDotClass = isBlueAccent ? 'bg-[#0046FF]' : 'bg-[#FF8040]';
+  const badgeClass = isBlueAccent
+    ? 'text-[#0046FF] bg-[#0046FF]/10 border border-[#0046FF]/25'
+    : 'text-[#FF8040] bg-[#FF8040]/10 border border-[#FF8040]/25';
+
   return (
     <motion.button
       whileTap={{ scale: 0.98 }}
       onClick={onToggle}
       className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
         selected
-          ? `border-[${accent}]/50 bg-[${accent}]/10 shadow-sm`
+          ? selectedCardClass
           : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
       }`}
-      style={selected ? { borderColor: `${accent}60`, backgroundColor: `${accent}15` } : {}}
     >
       {/* Check circle */}
       <div
         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-          selected ? 'border-transparent' : 'border-white/20'
+          selected ? `border-transparent ${selectedDotClass}` : 'border-white/20'
         }`}
-        style={selected ? { backgroundColor: accent } : {}}
       >
         <AnimatePresence>
           {selected && (
@@ -641,12 +652,7 @@ function CoursePickCard({ course, selected, onToggle, accent }: {
             {course.creditHours} hrs
           </span>
           <span
-            className="text-xs font-bold px-1.5 py-0.5 rounded"
-            style={{
-              color: accent,
-              backgroundColor: `${accent}18`,
-              border: `1px solid ${accent}40`,
-            }}
+            className={`text-xs font-bold px-1.5 py-0.5 rounded ${badgeClass}`}
           >
             {course.requirement === 'required' ? 'Required' : 'Elective'}
           </span>
