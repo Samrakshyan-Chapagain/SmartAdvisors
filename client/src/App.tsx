@@ -5,11 +5,17 @@ import WelcomePage from './components/WelcomePage';
 import LoginPage, { GoogleUser } from './components/LoginPage';
 import UploadScreen from './components/UploadScreen';
 import TranscriptReview from './components/TranscriptReview';
-import PreferenceForm, { Preferences } from './components/PreferenceForm';
-import RecommendationDashboard from './components/RecommendationDashboard';
+import type { Preferences } from './components/PreferenceForm';
+import ProfessorPreferencesOnboarding, {
+  onboardingSelectionsToPreferences,
+} from './components/ProfessorPreferencesOnboarding';
+import ProcessingOverlay from './components/ProcessingOverlay';
+import YourRecommendations from './components/YourRecommendations';
 import DegreePlanSetup from './components/DegreePlanSetup';
 import SemesterPlanView from './components/SemesterPlanView';
 import WelcomeBack from './components/WelcomeBack';
+import PlanDegreePage from './components/PlanDegreePage';
+import type { DegreePlan, Course, ElectiveCourse, Student } from './types/PlanDegreePage';
 
 // Use localhost for local development
 const API_URL = 'http://127.0.0.1:8000';
@@ -32,8 +38,8 @@ interface ApiRecommendationResponse {
   1  = UploadScreen
   2  = TranscriptReview
   --- branches here ---
-  Guest:     3 = PreferenceForm → 4 = RecommendationDashboard
-  Logged-in: 3 = PreferenceForm (prefs) → 3 = DegreePlanSetup (when prefs set) → 4 = SemesterPlanView
+  Guest:     3 = ProfessorPreferencesOnboarding → 4 = YourRecommendations (demo UI; API data still in apiData)
+  Logged-in: 3 = ProfessorPreferencesOnboarding (prefs) → 3 = DegreePlanSetup (when prefs set) → 4 = SemesterPlanView
   Returning: Sign In → 4 = WelcomeBack dashboard → SemesterPlanView
 */
 
@@ -51,10 +57,28 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [degreePlan, setDegreePlan] = useState<any>(null);
   const [isReturningUser, setIsReturningUser] = useState(false);
+  const usePlanDegreePage = true; // Toggle for new UI (set to false to use old DegreePlanSetup)
+  const [planDegreeData, setPlanDegreeData] = useState<{
+    student: Student | undefined;
+    requiredCourses: Course[];
+    electiveCourses: ElectiveCourse[];
+  }>({
+    student: undefined,
+    requiredCourses: [],
+    electiveCourses: []
+  });
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [step, showLogin]);
+
+  // Reset plan degree data whenever the user navigates away from step 3
+  // so stale data from a different department/transcript doesn't linger.
+  useEffect(() => {
+    if (step !== 3) {
+      setPlanDegreeData({ student: undefined, requiredCourses: [], electiveCourses: [] });
+    }
+  }, [step]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -172,6 +196,78 @@ function App() {
     }
   };
 
+  // Handler for PlanDegreePage completion
+  const handlePlanDegreeComplete = async (plan: DegreePlan) => {
+    await handleGenerateDegreePlan(
+      plan.maxHoursPerSemester,
+      plan.selectedCourseIds,
+      plan.season,
+      parseInt(plan.year),
+      plan.includeSummer,
+      [] // No pre-selected electives in the new UI flow
+    );
+  };
+
+  // Fetch data for PlanDegreePage
+  const fetchPlanDegreeData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/degree-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          completed_courses: completedCourses,
+          department,
+          credits_per_semester: 15, // Default value for initial fetch
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Transform API data to PlanDegreePage format
+        const requiredCourses: Course[] = (data.eligibleCourses || [])
+          .filter((c: any) => c.requirement === 'required')
+          .map((c: any) => ({
+            id: c.code,
+            code: c.code,
+            name: c.name,
+            creditHours: c.creditHours
+          }));
+
+        const electiveSource = data.allElectives || data.eligibleCourses?.filter((c: any) => c.requirement === 'elective') || [];
+        const electiveCourses: ElectiveCourse[] = electiveSource.map((c: any) => ({
+          id: c.code,
+          code: c.code,
+          name: c.name,
+          creditHours: c.creditHours,
+          missingPrereqs: c.missingPrereqs || [],
+        }));
+
+        const remHrs = Math.max(0, (data.stats.totalHours || 0) - (data.stats.completedHours || 0));
+        const student: Student | undefined = data.stats
+          ? {
+              name: googleUser?.name || 'Student',
+              completedCourses: [...completedCourses],
+              completedCreditHours: data.stats.completedHours || 0,
+              totalCreditHours: data.stats.totalHours || 0,
+              totalCoursesRequired: data.stats.totalCourses || 0,
+              estimatedSemestersLeft: remHrs > 0 ? Math.max(1, Math.ceil(remHrs / 15)) : 0,
+            }
+          : undefined;
+
+        setPlanDegreeData({
+          student,
+          requiredCourses,
+          electiveCourses
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch plan degree data:', error);
+      alert("Could not connect to server.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogoClick = () => {
     // If logged in with a plan, go to WelcomeBack dashboard
     if (isLoggedIn && degreePlan && googleUser) {
@@ -271,13 +367,13 @@ function App() {
   );
 
   if (step === 1) return (
-    <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined}>
-      <UploadScreen file={file} department={department} onFileChange={handleFileChange} setDepartment={setDepartment} onNext={handleUploadAndParse} onBack={() => setStep(0)} isLoading={isLoading} />
+    <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined} fullViewport>
+      <UploadScreen file={file} department={department} onFileChange={handleFileChange} onClearFile={() => setFile(null)} setDepartment={setDepartment} onNext={handleUploadAndParse} onBack={() => setStep(0)} isLoading={isLoading} />
     </Layout>
   );
 
   if (step === 2) return (
-    <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined}>
+    <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined} fullViewport>
       <TranscriptReview courses={completedCourses} onNext={() => setStep(3)} onBack={() => setStep(1)} />
     </Layout>
   );
@@ -288,16 +384,45 @@ function App() {
       // Signed-in flow: collect preferences first, then show plan setup
       if (!userPrefs) {
         return (
-          <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut}>
-            <PreferenceForm
-              onGenerateSchedule={(prefs) => setUserPrefs(prefs)}
-              isLoading={false}
+          <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut} fullViewport>
+            <ProfessorPreferencesOnboarding
               onBack={() => setStep(2)}
-              buttonLabel="Continue to Plan Setup"
+              onComplete={(p, l, a) => setUserPrefs(onboardingSelectionsToPreferences(p, l, a))}
             />
           </Layout>
         );
       }
+      
+      // Use new PlanDegreePage UI if enabled
+      if (usePlanDegreePage) {
+        const hasData = planDegreeData.requiredCourses.length > 0 || planDegreeData.electiveCourses.length > 0;
+        if (!hasData && !isLoading) {
+          fetchPlanDegreeData();
+        }
+        
+        return (
+          <>
+            <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut}>
+              <PlanDegreePage
+                student={planDegreeData.student}
+                requiredCourses={planDegreeData.requiredCourses}
+                electiveCourses={planDegreeData.electiveCourses}
+                loading={isLoading}
+                onComplete={handlePlanDegreeComplete}
+                onBack={() => setUserPrefs(null)}
+              />
+            </Layout>
+            <ProcessingOverlay
+              isVisible={isLoading}
+              title="Building Your Degree Plan"
+              steps={['Checking prerequisites...', 'Scheduling courses by priority...', 'Finding top professors...', 'Finalizing your plan...']}
+              icon="plan"
+            />
+          </>
+        );
+      }
+      
+      // Original DegreePlanSetup UI
       return (
         <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut}>
           <DegreePlanSetup
@@ -311,8 +436,17 @@ function App() {
       );
     }
     return (
-      <Layout onLogoClick={handleLogoClick}>
-        <PreferenceForm onGenerateSchedule={handleGenerate} isLoading={isLoading} onBack={() => setStep(2)} />
+      <Layout onLogoClick={handleLogoClick} fullViewport>
+        <ProfessorPreferencesOnboarding
+          onBack={() => setStep(2)}
+          onComplete={(p, l, a) => handleGenerate(onboardingSelectionsToPreferences(p, l, a))}
+        />
+        <ProcessingOverlay
+          isVisible={isLoading}
+          title="Finding your matches"
+          steps={['Analyzing preferences...', 'Matching professors...', 'Building your list...']}
+          icon="recommend"
+        />
       </Layout>
     );
   }
@@ -350,15 +484,15 @@ function App() {
     }
     if (apiData && userPrefs) {
       return (
-        <Layout onLogoClick={handleLogoClick}>
-          <RecommendationDashboard
+        <Layout onLogoClick={handleLogoClick} fullViewport>
+          <YourRecommendations
             userData={{
-              preferences: userPrefs,
               recommendations: apiData.recommendations,
               electiveRecommendations: apiData.electiveRecommendations || [],
               stats: apiData.stats,
             }}
             onBack={() => setStep(3)}
+            onExport={() => window.print()}
           />
         </Layout>
       );

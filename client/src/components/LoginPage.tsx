@@ -45,26 +45,30 @@ function GoogleIcon() {
 }
 
 export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPageProps) {
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        const userInfo = await res.json();
-        onLogin({
-          name: userInfo.name,
-          email: userInfo.email,
-          picture: userInfo.picture,
-        });
-      } catch {
-        alert('Failed to get user info. Please try again.');
-      }
-    },
-    onError: () => {
-      alert('Google sign-in failed. Please try again.');
-    },
-  });
+  const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim();
+
+  const googleLogin = clientId
+    ? useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+          try {
+            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+            });
+            const userInfo = await res.json();
+            onLogin({
+              name: userInfo.name,
+              email: userInfo.email,
+              picture: userInfo.picture,
+            });
+          } catch {
+            alert('Failed to get user info. Please try again.');
+          }
+        },
+        onError: () => {
+          alert('Google sign-in failed. Please try again.');
+        },
+      })
+    : null;
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
@@ -101,11 +105,12 @@ export default function LoginPage({ onGuestContinue, onLogin, onBack }: LoginPag
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              onClick={() => googleLogin()}
-              className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm transition-colors"
+              onClick={() => googleLogin?.()}
+              disabled={!googleLogin}
+              className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border border-white/10 bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/[0.08]"
             >
               <GoogleIcon />
-              Continue with Google
+              {googleLogin ? 'Continue with Google' : 'Google sign-in unavailable (missing client ID)'}
             </motion.button>
 
             {/* GitHub and Microsoft — coming soon placeholders */}

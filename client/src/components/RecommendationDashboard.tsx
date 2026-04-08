@@ -67,12 +67,11 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
   getTagStyle: (t: string) => string;
   accentColor: string;
 }) {
+  const enterDelay = Math.min(index * 0.04, 0.45);
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1 }}
-      className="flex-shrink-0 w-96 bg-white/[0.04] backdrop-blur-md rounded-3xl shadow-xl border border-white/15 overflow-hidden flex flex-col max-h-[80vh] print-card"
+    <div
+      className="flex-shrink-0 w-96 bg-white/[0.05] rounded-3xl shadow-xl border border-white/15 overflow-hidden flex flex-col max-h-[80vh] print-card opacity-0 animate-[fadeSlideIn_0.45s_ease-out_forwards]"
+      style={{ animationDelay: `${enterDelay}s` }}
     >
       <div className="px-6 py-5 border-b border-white/15 flex-shrink-0" style={{ background: `${accentColor}20` }}>
         <div className="flex justify-between items-center mb-1">
@@ -101,11 +100,10 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
         {classData.professors.map((professor, profIndex) => {
           const isBestMatch = profIndex === 0;
           return (
-            <motion.div
+            <div
               key={professor.id}
-              whileHover={{ y: -2 }}
               className={`
-                relative rounded-2xl p-5 transition-all group border
+                relative rounded-2xl p-5 transition-[transform,box-shadow,border-color] duration-200 group border hover:-translate-y-0.5
                 ${isBestMatch
                   ? 'bg-[#FF8040]/15 border-[#FF8040]/70 shadow-lg shadow-[#FF8040]/15 z-10 scale-[1.02]'
                   : 'bg-white/[0.06] border-white/15 hover:border-[#0046FF]/60 hover:bg-[#0046FF]/15'
@@ -149,11 +147,11 @@ function CourseCard({ classData, index, getDifficultyColor, getTagStyle, accentC
                   <span className="text-xs text-white/30 italic py-1">No attributes</span>
                 )}
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
-    </motion.div>
+    </div>
   );
 }
 

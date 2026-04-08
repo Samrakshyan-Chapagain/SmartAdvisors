@@ -14,7 +14,8 @@ from .scripts.recommendation_engine import (
     filter_eligible_courses_unique,
     get_professor_offerings_for_course,
     generate_degree_plan,
-    normalize_code
+    normalize_code,
+    expand_completed_with_prereqs,
 )
 from .scripts.parse_transcript import extract_all_courses
 
@@ -179,6 +180,29 @@ def calculate_match_score(professor_obj, user_prefs):
     return round(final, 1)
 
 
+def _annotate_match_percent(course_lists):
+    """
+    Add matchPercent (0-100) to each professor dict, normalized from raw matchScore
+    across all professors in this API response (required + electives).
+    """
+    all_profs = []
+    for lst in course_lists:
+        for entry in lst:
+            for p in entry.get('professors') or []:
+                all_profs.append(p)
+    if not all_profs:
+        return
+    scores = [float(p.get('matchScore') or 0) for p in all_profs]
+    lo, hi = min(scores), max(scores)
+    span = hi - lo
+    for p in all_profs:
+        s = float(p.get('matchScore') or 0)
+        if span > 1e-9:
+            p['matchPercent'] = int(round(100 * (s - lo) / span))
+        else:
+            p['matchPercent'] = 100
+
+
 def _build_professors_for_course(code, user_prefs=None):
     """
     Look up top-3 professors for a course code.
@@ -289,6 +313,7 @@ def parse_transcript():
         file.save(temp_path)
         
         courses = extract_all_courses(temp_path)
+        print(f"  → Extracted {len(courses)} courses: {courses[:15]}{'...' if len(courses) > 15 else ''}", file=sys.stderr)
         
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -481,6 +506,8 @@ def get_recommendations():
         total_elective_hours = sum(c.get('Credit_Hours', 3) for c in elective_slots)
         remaining_elective_slots = max(0, total_elective_slots - completed_elective_count)
 
+        _annotate_match_percent([required, electives])
+
         return jsonify({
             'success': True,
             'recommendations': required,
@@ -511,6 +538,7 @@ def degree_plan():
         department = data.get('department', 'CE')
         completed_courses = data.get('completed_courses', [])
         credits_per_semester = data.get('credits_per_semester', 15)
+        print(f"\n=== DEGREE PLAN ROUTE ===\n  department={department}  completed={len(completed_courses)} courses  cps={credits_per_semester}", file=sys.stderr)
         selected_next = data.get('selected_next_semester', None)
         start_semester = data.get('start_semester', None)
         start_year = data.get('start_year', None)
@@ -623,6 +651,22 @@ def degree_plan():
         completed_count = completed_req_count + completed_elective_count + completed_gen_ed_count
         completed_hours = completed_req_hours + completed_elective_hours + completed_gen_ed_hours
 
+        # Build a lookup from course code → DB row for prereq checking
+        course_map = {normalize_code(c['Course_Num']): c for c in all_courses}
+        expanded_completed = expand_completed_with_prereqs(set(normalized_completed), course_map)
+
+        def _missing_prereqs(course_row):
+            """Return list of prerequisite course codes the student hasn't completed."""
+            prereqs_raw = course_row.get('Pre_Requisites', '').strip()
+            if not prereqs_raw or prereqs_raw.lower() == 'none':
+                return []
+            missing = []
+            for p in prereqs_raw.split(','):
+                p = normalize_code(p.strip())
+                if p and p not in expanded_completed:
+                    missing.append(p)
+            return missing
+
         # All elective courses (not just eligible — user picks from full list)
         all_elective_courses = []
         for c in all_courses:
@@ -642,6 +686,7 @@ def degree_plan():
                 'code': code,
                 'name': c.get('Course_Name', ''),
                 'creditHours': hrs,
+                'missingPrereqs': _missing_prereqs(c),
             })
         all_elective_courses.sort(key=lambda x: x['code'])
 

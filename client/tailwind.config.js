@@ -5,7 +5,12 @@ export default {
       "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
-      extend: {},
+      extend: {
+        fontFamily: {
+          heading: ['Bricolage Grotesque', 'sans-serif'],
+          body: ['Plus Jakarta Sans', 'sans-serif'],
+        },
+      },
     },
     plugins: [],
   }

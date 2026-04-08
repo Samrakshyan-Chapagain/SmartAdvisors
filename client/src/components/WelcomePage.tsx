@@ -6,89 +6,78 @@ interface WelcomePageProps {
   onSignIn: () => void;
 }
 
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 22 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] as const },
+});
+
 export default function WelcomePage({ onGetStarted, onSignIn }: WelcomePageProps) {
   return (
-    <div className="relative min-h-[80vh] flex flex-col items-center justify-center text-center overflow-hidden">
+    <div className="relative min-h-[80vh] flex flex-col items-center justify-center text-center overflow-hidden py-10">
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="max-w-4xl mx-auto px-6 relative z-10"
-      >
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FF8040]/10 border border-[#FF8040]/20 text-[#FF8040] font-bold text-sm mb-8 backdrop-blur-sm"
-        >
+      <div className="max-w-4xl mx-auto px-6 relative z-10 w-full">
+        <motion.div {...fadeUp(0)} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FF8040]/10 border border-[#FF8040]/20 text-[#FF8040] font-bold text-sm mb-7 backdrop-blur-sm">
           <Sparkles className="w-4 h-4 fill-[#FF8040]" />
           <span className="text-white/90">For UTA Students</span>
         </motion.div>
 
-        <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6 leading-tight">
+        <motion.h1 {...fadeUp(0.08)} className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-5 leading-tight">
           Plan Your Perfect <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF8040] to-white">
             Semester
           </span>
-        </h1>
+        </motion.h1>
 
-        <p className="text-lg md:text-xl text-white/70 mb-12 max-w-2xl mx-auto leading-relaxed font-light">
+        <motion.p {...fadeUp(0.16)} className="text-lg md:text-xl text-white/65 mb-9 max-w-2xl mx-auto leading-relaxed font-light">
           Upload your transcript. We'll figure out what you can take next and find the best professors for each course.
-        </p>
+        </motion.p>
 
-        {/* How it works — quick 3-step visual */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-0 mb-12 max-w-xl mx-auto"
-        >
-          <Step num="1" label="Upload Transcript" icon={<Upload className="w-4 h-4" />} />
-          <div className="hidden sm:block w-8 h-px bg-white/20" />
-          <Step num="2" label="Set Preferences" icon={<Star className="w-4 h-4" />} />
-          <div className="hidden sm:block w-8 h-px bg-white/20" />
-          <Step num="3" label="Get Matched" icon={<CheckCircle2 className="w-4 h-4" />} />
+        {/* How it works — 3-step visual */}
+        <motion.div {...fadeUp(0.24)} className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-0 mb-9 max-w-lg mx-auto">
+          {[
+            { num: '1', label: 'Upload Transcript', icon: <Upload className="w-3.5 h-3.5" /> },
+            { num: '2', label: 'Set Preferences', icon: <Star className="w-3.5 h-3.5" /> },
+            { num: '3', label: 'Get Matched', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+          ].map((s, i) => (
+            <div key={s.num} className="flex items-center gap-0 flex-shrink-0">
+              <Step num={s.num} label={s.label} icon={s.icon} />
+              {i < 2 && <div className="hidden sm:block w-6 h-px bg-white/15 flex-shrink-0 mx-1" />}
+            </div>
+          ))}
         </motion.div>
 
-        {/* CTA buttons — both equally prominent */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4"
-        >
+        {/* CTA buttons */}
+        <motion.div {...fadeUp(0.32)} className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
           <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: 1.03, y: -1 }}
+            whileTap={{ scale: 0.97 }}
             onClick={onGetStarted}
-            className="group inline-flex items-center gap-3 px-10 py-4 bg-[#FF8040] text-white text-lg font-bold rounded-2xl shadow-xl shadow-[#FF8040]/25 hover:shadow-2xl hover:bg-[#ff925c] transition-all"
+            className="group inline-flex items-center gap-3 px-9 py-4 bg-[#FF8040] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#FF8040]/20 hover:shadow-xl hover:bg-[#ff925c] transition-colors"
           >
             Continue as Guest
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
           </motion.button>
 
           <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: 1.03, y: -1 }}
+            whileTap={{ scale: 0.97 }}
             onClick={onSignIn}
-            className="group inline-flex items-center gap-3 px-10 py-4 bg-[#0046FF] text-white text-lg font-bold rounded-2xl shadow-xl shadow-[#0046FF]/25 hover:shadow-2xl hover:bg-[#1a5cff] transition-all"
+            className="group inline-flex items-center gap-3 px-9 py-4 bg-[#0046FF] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#0046FF]/20 hover:shadow-xl hover:bg-[#1a5cff] transition-colors"
           >
             <LogIn className="w-5 h-5" />
             Sign In
           </motion.button>
         </motion.div>
 
-        <p className="text-white/40 text-sm mb-16">
+        <motion.p {...fadeUp(0.38)} className="text-white/35 text-sm mb-10">
           Sign in to plan your entire degree. Guests get course and professor recommendations for what to take next.
-        </p>
+        </motion.p>
 
         {/* Feature cards — what each mode offers */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="grid md:grid-cols-2 gap-5 text-left max-w-3xl mx-auto"
+          {...fadeUp(0.44)}
+          className="grid md:grid-cols-2 gap-4 text-left max-w-3xl mx-auto"
         >
           {/* Guest card */}
           <div className="bg-white/[0.06] backdrop-blur-md p-6 rounded-2xl border border-white/10 hover:border-[#FF8040]/40 transition-all group">
@@ -131,25 +120,25 @@ export default function WelcomePage({ onGetStarted, onSignIn }: WelcomePageProps
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="flex items-center justify-center gap-2 mt-12 text-xs text-white/30"
+          transition={{ delay: 0.55 }}
+          className="flex items-center justify-center gap-2 mt-8 text-xs text-white/30"
         >
           <GraduationCap className="w-3.5 h-3.5" />
           <span>Built for UTA students</span>
         </motion.div>
 
-      </motion.div>
+      </div>
     </div>
   );
 }
 
 function Step({ num, label, icon }: { num: string; label: string; icon: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10">
-      <div className="w-6 h-6 rounded-full bg-[#FF8040]/20 text-[#FF8040] text-xs font-bold flex items-center justify-center flex-shrink-0">
+    <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/[0.09] flex-shrink-0">
+      <div className="w-5 h-5 rounded-full bg-[#FF8040]/25 text-[#FF8040] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
         {num}
       </div>
-      <span className="text-white/60 text-sm font-medium flex items-center gap-1.5">
+      <span className="text-white/55 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap">
         {icon} {label}
       </span>
     </div>

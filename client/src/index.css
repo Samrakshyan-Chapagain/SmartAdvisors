@@ -2,6 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design system variables */
+:root {
+  --bg: #060a14;
+  --s1: #0b1120;
+  --s2: #0f1826;
+  --s3: #141f30;
+  --s4: #1a2840;
+  --b0: rgba(255,255,255,0.05);
+  --b1: rgba(255,255,255,0.09);
+  --b2: rgba(255,255,255,0.15);
+  --border: #1c2035;
+  --border2: #242840;
+  --text: #dce6f8;
+  --sub: #7a90b8;
+  --sub2: #3d506e;
+  --sub3: #1e2e48;
+  --blue: #4f8ef5;
+  --blue-dim: rgba(79, 142, 245, 0.15);
+  --blue-border: rgba(79, 142, 245, 0.3);
+  --orange: #f07840;
+  --orange-dim: rgba(240, 120, 64, 0.15);
+  --orange-border: rgba(240, 120, 64, 0.3);
+  --purple: #9b7ef8;
+  --purple-dim: rgba(155, 126, 248, 0.15);
+  --purple-border: rgba(155, 126, 248, 0.3);
+  --green: #26d49a;
+  --red: #f06060;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #5b7cfa, #ff6b35);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -11,6 +48,71 @@
 .no-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+}
+
+/* Themed scrollbar for dark panels */
+.scrollbar-themed::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-themed::-webkit-scrollbar-track {
+  background: rgba(28, 32, 53, 0.5);
+  border-radius: 3px;
+}
+.scrollbar-themed::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 3px;
+}
+.scrollbar-themed::-webkit-scrollbar-thumb:hover {
+  background: var(--sub2);
+}
+.scrollbar-themed {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+/*
+  Wizard pages: one static paint — no full-viewport grid, no filter:blur(), no moving layers.
+  (Those were the main source of jank on mid-range GPUs / Windows.)
+*/
+.sa-page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 100% 70% at 15% 5%, rgba(91, 124, 250, 0.18), transparent 52%),
+    radial-gradient(ellipse 80% 50% at 85% 95%, rgba(255, 107, 53, 0.12), transparent 48%),
+    radial-gradient(ellipse 60% 60% at 50% 50%, rgba(147, 51, 234, 0.08), transparent 50%),
+    var(--bg);
+}
+
+/* Dropzone icon: CSS-only idle float / upload pulse (replaces infinite GSAP) */
+@media (prefers-reduced-motion: no-preference) {
+  .sa-dz-blob--idle {
+    animation: sa-dz-float 2.4s ease-in-out infinite alternate;
+  }
+  .sa-dz-blob--busy {
+    animation: sa-dz-pulse 0.65s ease-in-out infinite alternate;
+  }
+}
+@keyframes sa-dz-float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-6px); }
+}
+@keyframes sa-dz-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 /* Print styles are now handled in the component itself */
