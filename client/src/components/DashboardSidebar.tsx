@@ -14,6 +14,7 @@ interface DashboardSidebarProps {
   department: string;
   onSignOut: () => void;
   onNavClick?: (id: string) => void;
+  onLogoClick?: () => void;
 }
 
 const NAV_ITEMS = [
@@ -30,6 +31,7 @@ export default function DashboardSidebar({
   department,
   onSignOut,
   onNavClick,
+  onLogoClick,
 }: DashboardSidebarProps) {
   const firstName = userName.split(' ')[0];
   const initials = userName
@@ -49,13 +51,18 @@ export default function DashboardSidebar({
         <div className="ds-sidebar-inner">
           {/* Logo */}
           <div className="ds-sidebar-top">
-            <div className="ds-logo-row">
+            <button
+              type="button"
+              className="ds-logo-row"
+              onClick={onLogoClick}
+              aria-label="Go to home"
+            >
               <div className="ds-logo-icon">
                 <Compass className="w-5 h-5 text-white" strokeWidth={2.5} />
                 <span className="ds-logo-dot" />
               </div>
               <span className="ds-sidebar-text ds-logo-label">Smart Advisors</span>
-            </div>
+            </button>
 
             {/* Nav */}
             <nav className="ds-nav">

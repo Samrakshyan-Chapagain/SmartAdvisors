@@ -398,6 +398,8 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
           onLogoClick={handleLogoClick}
         >
           <DashboardPage
+            plan={degreePlan}
+            completedCourses={completedCourses}
             userName={googleUser.name}
             department={getDegreeName(department) || department}
             college={getCollegeName(department) || 'College of Engineering'}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Calendar, BookOpen, Sparkles, GraduationCap, Clock, Download, Star, ChevronDown, ChevronUp, FileUp, Pencil, TrendingUp, Layers } from 'lucide-react';
+import { ArrowLeft, Calendar, BookOpen, Sparkles, GraduationCap, Clock, Download, Star, ChevronDown, FileUp, Pencil, TrendingUp, Layers } from 'lucide-react';
 
 interface Professor {
   name: string;
