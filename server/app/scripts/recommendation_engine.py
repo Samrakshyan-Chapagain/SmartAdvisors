@@ -9,6 +9,20 @@ def _get_db_path():
     return os.path.abspath(os.path.join(script_dir, '../../data_new/smart_advisors.db'))
 
 
+# Client major codes that differ from degree_id used in degree_courses / degrees.total_hours
+_DEGREE_CATALOG_ALIASES = {
+    'CSE': 'CS',  # UI "Computer Science" → BS CS catalog
+    'MAE': 'ME',  # UI Mechanical Engineering → ME catalog
+}
+
+
+def catalog_degree_id(department):
+    """Map UI department code to the degree_id rows are stored under in smart_advisors.db."""
+    if not department:
+        return department
+    return _DEGREE_CATALOG_ALIASES.get(department, department)
+
+
 def parse_prereq_string(raw):
     """
     Parse a prerequisites/corequisites string into a list of normalized course codes.
@@ -48,6 +62,7 @@ def get_department_courses(department):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+    degree_id = catalog_degree_id(department)
     cur.execute('''
         SELECT c.course_id, c.course_name, c.pre_requisites, c.co_requisites,
                c.description, c.credit_hours, c.dept_prefix,
@@ -55,7 +70,7 @@ def get_department_courses(department):
         FROM degree_courses dc
         JOIN courses c ON dc.course_id = c.course_id
         WHERE dc.degree_id = ?
-    ''', (department,))
+    ''', (degree_id,))
     courses = [dict(row) for row in cur.fetchall()]
     conn.close()
     return courses
@@ -95,7 +110,8 @@ def get_degree_info(department):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute('SELECT degree_id, degree_name, college, total_hours FROM degrees WHERE degree_id = ?', (department,))
+    degree_id = catalog_degree_id(department)
+    cur.execute('SELECT degree_id, degree_name, college, total_hours FROM degrees WHERE degree_id = ?', (degree_id,))
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None

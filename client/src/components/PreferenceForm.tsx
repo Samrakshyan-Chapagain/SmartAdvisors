@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Loader2,
@@ -13,27 +14,17 @@ import {
   NotebookPen,
   CalendarClock,
   Zap,
-  CheckCircle2,
-  AlertCircle,
+  Check,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import ProcessingOverlay from './ProcessingOverlay';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Preferences interface
-//  • Positive keys  (extraCredit … groupProjects) → bonus when matched
-//  • Avoid keys     (avoidTestHeavy …)             → penalty when matched
-//    Selecting "avoid" = "this would genuinely put me off a professor"
-// ─────────────────────────────────────────────────────────────────────────────
 export interface Preferences {
-  // What you actively want (+)
   extraCredit: boolean;
   clearGrading: boolean;
   goodFeedback: boolean;
   caring: boolean;
   lectureHeavy: boolean;
   groupProjects: boolean;
-  // What you want to avoid (−)
   avoidTestHeavy: boolean;
   avoidHomeworkHeavy: boolean;
   avoidStrictAttendance: boolean;
@@ -48,347 +39,415 @@ interface PreferenceFormProps {
 }
 
 const MAX_PRIORITY_PICKS = 3;
+type LucideIcon = React.ElementType<any>;
 
-const PRIORITY_ITEMS = [
-  { key: 'extraCredit'  as const, label: 'Extra Credit',         desc: 'Wants to give you ways to improve your grade', icon: <TrendingUp  className="w-4 h-4" /> },
-  { key: 'clearGrading' as const, label: 'Clear Grading',        desc: "You always know exactly how you're being marked", icon: <ClipboardCheck className="w-4 h-4" /> },
-  { key: 'goodFeedback' as const, label: 'Helpful Feedback',     desc: 'Leaves detailed, useful comments on your work',  icon: <MessageCircle  className="w-4 h-4" /> },
-  { key: 'caring'       as const, label: 'Approachable',         desc: 'Easy to reach, genuinely supports students',      icon: <Heart          className="w-4 h-4" /> },
+const PRIORITY_ITEMS: { key: keyof Pick<Preferences, 'extraCredit' | 'clearGrading' | 'goodFeedback' | 'caring'>; label: string; desc: string; icon: LucideIcon }[] = [
+  { key: 'extraCredit',   label: 'Extra Credit',      desc: 'Gives ways to boost your grade',         icon: TrendingUp },
+  { key: 'clearGrading',  label: 'Clear Grading',     desc: 'You always know how you\'re marked',     icon: ClipboardCheck },
+  { key: 'goodFeedback',  label: 'Helpful Feedback',  desc: 'Detailed comments on your work',         icon: MessageCircle },
+  { key: 'caring',        label: 'Approachable',      desc: 'Easy to reach, genuinely supportive',    icon: Heart },
 ];
 
-const STYLE_ITEMS = [
-  { key: 'lectureHeavy'  as const, label: 'Great lectures',  desc: 'Known for clear, engaging in-class delivery', icon: <Mic2  className="w-4 h-4" /> },
-  { key: 'groupProjects' as const, label: 'Group projects',  desc: 'Assignments done with teammates',             icon: <Users className="w-4 h-4" /> },
+const STYLE_ITEMS: { key: keyof Pick<Preferences, 'lectureHeavy' | 'groupProjects'>; label: string; desc: string; icon: LucideIcon }[] = [
+  { key: 'lectureHeavy',   label: 'Great lectures',    desc: 'Clear and engaging in-class delivery',  icon: Mic2 },
+  { key: 'groupProjects',  label: 'Group projects',    desc: 'Assignments done with teammates',       icon: Users },
 ];
 
-const AVOID_ITEMS = [
-  { key: 'avoidTestHeavy'         as const, label: 'Exam-heavy grading', desc: 'When nearly all your grade comes from tests',         icon: <FileQuestion   className="w-4 h-4" /> },
-  { key: 'avoidHomeworkHeavy'     as const, label: 'Lots of homework',   desc: 'Frequent reading assignments every week',             icon: <NotebookPen    className="w-4 h-4" /> },
-  { key: 'avoidStrictAttendance'  as const, label: 'Strict attendance',  desc: 'Missing one class can hurt your grade',               icon: <CalendarClock  className="w-4 h-4" /> },
-  { key: 'avoidPopQuizzes'        as const, label: 'Pop quizzes',        desc: "Unannounced quizzes you can't prepare for",           icon: <Zap            className="w-4 h-4" /> },
+const AVOID_ITEMS: { key: keyof Pick<Preferences, 'avoidTestHeavy' | 'avoidHomeworkHeavy' | 'avoidStrictAttendance' | 'avoidPopQuizzes'>; label: string; desc: string; icon: LucideIcon }[] = [
+  { key: 'avoidTestHeavy',          label: 'Exam-heavy grading',   desc: 'Nearly all grade from tests',           icon: FileQuestion },
+  { key: 'avoidHomeworkHeavy',      label: 'Heavy homework',       desc: 'Frequent assignments every week',       icon: NotebookPen },
+  { key: 'avoidStrictAttendance',   label: 'Strict attendance',    desc: 'Missing class hurts your grade',        icon: CalendarClock },
+  { key: 'avoidPopQuizzes',         label: 'Pop quizzes',          desc: 'Unannounced, impossible to prep for',   icon: Zap },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Priority card — blue, limited to MAX_PRIORITY_PICKS
-// ─────────────────────────────────────────────────────────────────────────────
-function PriorityCard({
-  prefKey, label, desc, icon, checked, onToggle, disabled,
+/* ── Card component ─────────────────────────────────────────── */
+const VARIANT_COLORS = {
+  priority: {
+    ring:     'rgba(91,124,250,0.7)',
+    bg:       'rgba(91,124,250,0.09)',
+    iconBg:   'rgba(91,124,250,0.18)',
+    iconCol:  '#5b7cfa',
+    checkBg:  'rgba(91,124,250,0.2)',
+    checkCol: '#5b7cfa',
+  },
+  style: {
+    ring:     'rgba(255,107,53,0.7)',
+    bg:       'rgba(255,107,53,0.08)',
+    iconBg:   'rgba(255,107,53,0.18)',
+    iconCol:  '#ff6b35',
+    checkBg:  'rgba(255,107,53,0.2)',
+    checkCol: '#ff6b35',
+  },
+  avoid: {
+    ring:     'rgba(248,113,113,0.7)',
+    bg:       'rgba(248,113,113,0.08)',
+    iconBg:   'rgba(248,113,113,0.18)',
+    iconCol:  '#f87171',
+    checkBg:  'rgba(248,113,113,0.2)',
+    checkCol: '#f87171',
+  },
+} as const;
+
+function PrefCard({
+  prefKey, label, desc, Icon, checked, onToggle, disabled, variant,
 }: {
-  prefKey: keyof Preferences; label: string; desc: string; icon: React.ReactNode;
-  checked: boolean; onToggle: (k: keyof Preferences) => void; disabled: boolean;
+  prefKey: keyof Preferences;
+  label: string;
+  desc: string;
+  Icon: LucideIcon;
+  checked: boolean;
+  onToggle: (k: keyof Preferences) => void;
+  disabled?: boolean;
+  variant: 'priority' | 'style' | 'avoid';
 }) {
+  const c = useMemo(() => VARIANT_COLORS[variant], [variant]);
+  const isClickable = !disabled || checked;
+
   return (
-    <motion.button
+    <button
       type="button"
       onClick={() => onToggle(prefKey)}
-      whileHover={!disabled || checked ? { scale: 1.02 } : {}}
-      whileTap={!disabled || checked ? { scale: 0.97 } : {}}
-      className={`
-        relative w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 focus:outline-none
-        ${checked
-          ? 'border-[#0046FF] bg-[#0046FF]/15 shadow-lg shadow-[#0046FF]/20 cursor-pointer'
-          : disabled
-            ? 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed'
-            : 'border-white/10 bg-white/5 hover:border-[#0046FF]/40 hover:bg-[#0046FF]/5 cursor-pointer'
-        }
-      `}
+      disabled={disabled && !checked}
+      className="relative w-full text-left rounded-2xl border focus:outline-none transition-all duration-200 group"
+      style={{
+        padding: '14px 16px',
+        background:     checked ? c.bg : 'rgba(255,255,255,0.025)',
+        borderColor:    checked ? c.ring : 'rgba(255,255,255,0.07)',
+        borderWidth:    '1.5px',
+        boxShadow:      checked ? `0 0 0 1px ${c.ring}44, 0 8px 24px -12px ${c.ring}88` : 'none',
+        opacity:        disabled && !checked ? 0.38 : 1,
+        cursor:         isClickable ? 'pointer' : 'not-allowed',
+      }}
     >
-      <AnimatePresence>
-        {checked && (
-          <motion.div
-            key="check"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-3 right-3 text-[#0046FF]"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-xl flex-shrink-0 transition-colors duration-200 ${checked ? 'bg-[#0046FF]/30 text-[#0046FF]' : 'bg-white/5 text-white/40'}`}>
-          {icon}
+      {/* Subtle inner glow when checked */}
+      {checked && (
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-2xl pointer-events-none"
+          style={{ background: `linear-gradient(135deg, ${c.ring}22 0%, transparent 55%)` }}
+        />
+      )}
+
+      <div className="relative flex items-center gap-3.5">
+        {/* Icon */}
+        <div
+          className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-200"
+          style={{
+            background: checked ? c.iconBg : 'rgba(255,255,255,0.05)',
+            color:      checked ? c.iconCol : 'rgba(136,146,184,0.7)',
+          }}
+        >
+          <Icon className="w-4 h-4" />
         </div>
-        <div className="min-w-0 pr-6">
-          <span className="font-bold text-white block text-sm leading-tight mb-0.5">{label}</span>
-          <span className="text-xs text-white/45 leading-tight">{desc}</span>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-[13.5px] leading-tight text-[var(--text)]">{label}</div>
+          <div className="text-[11.5px] text-[var(--sub)] leading-snug mt-0.5">{desc}</div>
         </div>
+
+        {/* Check badge */}
+        <AnimatePresence>
+          {checked && (
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'backOut' }}
+              className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
+              style={{ background: c.checkBg, color: c.checkCol }}
+            >
+              <Check className="w-3 h-3" strokeWidth={3} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </motion.button>
+    </button>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Style card — orange, no limit
-// ─────────────────────────────────────────────────────────────────────────────
-function StyleCard({
-  prefKey, label, desc, icon, checked, onToggle,
+/* ── Section wrapper ────────────────────────────────────────── */
+function Section({
+  emoji, title, badge, children,
 }: {
-  prefKey: keyof Preferences; label: string; desc: string; icon: React.ReactNode;
-  checked: boolean; onToggle: (k: keyof Preferences) => void;
+  emoji: string;
+  title: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <motion.button
-      type="button"
-      onClick={() => onToggle(prefKey)}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      className={`
-        relative w-full text-left p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 focus:outline-none
-        ${checked
-          ? 'border-[#FF8040] bg-[#FF8040]/15 shadow-lg shadow-[#FF8040]/20'
-          : 'border-white/10 bg-white/5 hover:border-[#FF8040]/40 hover:bg-[#FF8040]/5'
-        }
-      `}
-    >
-      <AnimatePresence>
-        {checked && (
-          <motion.div
-            key="check"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-3 right-3 text-[#FF8040]"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-xl flex-shrink-0 transition-colors duration-200 ${checked ? 'bg-[#FF8040]/30 text-[#FF8040]' : 'bg-white/5 text-white/40'}`}>
-          {icon}
+    <div>
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base leading-none">{emoji}</span>
+          <h2 className="font-bold text-[15px] text-[var(--text)] tracking-tight">{title}</h2>
         </div>
-        <div className="min-w-0 pr-6">
-          <span className="font-bold text-white block text-sm leading-tight mb-0.5">{label}</span>
-          <span className="text-xs text-white/45 leading-tight">{desc}</span>
-        </div>
+        {badge}
       </div>
-    </motion.button>
+      {children}
+    </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Avoid card — red, selecting = "this is a dealbreaker"
-// ─────────────────────────────────────────────────────────────────────────────
-function AvoidCard({
-  prefKey, label, desc, icon, checked, onToggle,
-}: {
-  prefKey: keyof Preferences; label: string; desc: string; icon: React.ReactNode;
-  checked: boolean; onToggle: (k: keyof Preferences) => void;
-}) {
+/* ── Priority dots ──────────────────────────────────────────── */
+function PriorityDots({ count, max }: { count: number; max: number }) {
   return (
-    <motion.button
-      type="button"
-      onClick={() => onToggle(prefKey)}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      className={`
-        relative w-full text-left p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 focus:outline-none
-        ${checked
-          ? 'border-red-500/70 bg-red-500/10 shadow-lg shadow-red-500/15'
-          : 'border-white/10 bg-white/5 hover:border-red-500/30 hover:bg-red-500/5'
-        }
-      `}
-    >
-      <AnimatePresence>
-        {checked && (
-          <motion.div
-            key="alert"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-3 right-3 text-red-400"
-          >
-            <AlertCircle className="w-4 h-4" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-xl flex-shrink-0 transition-colors duration-200 ${checked ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-white/40'}`}>
-          {icon}
-        </div>
-        <div className="min-w-0 pr-6">
-          <span className="font-bold text-white block text-sm leading-tight mb-0.5">{label}</span>
-          <span className="text-xs text-white/45 leading-tight">{desc}</span>
-        </div>
-      </div>
-    </motion.button>
+    <div className="flex items-center gap-1.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <motion.div
+          key={i}
+          animate={{
+            background: i < count ? 'var(--blue)' : 'rgba(255,255,255,0.1)',
+            scale:      i < count ? 1.15 : 1,
+          }}
+          transition={{ duration: 0.2 }}
+          className="w-2 h-2 rounded-full"
+        />
+      ))}
+      <span className="ml-1 text-[11px] font-semibold text-[var(--sub)]">
+        {count}/{max}
+      </span>
+    </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main component
-// ─────────────────────────────────────────────────────────────────────────────
+/* ── Main component ─────────────────────────────────────────── */
 export default function PreferenceForm({ onGenerateSchedule, isLoading, onBack, buttonLabel }: PreferenceFormProps) {
   const [prefs, setPrefs] = useState<Preferences>({
-    extraCredit: false,
-    clearGrading: false,
-    goodFeedback: false,
-    caring: false,
-    lectureHeavy: false,
-    groupProjects: false,
-    avoidTestHeavy: false,
-    avoidHomeworkHeavy: false,
-    avoidStrictAttendance: false,
-    avoidPopQuizzes: false,
+    extraCredit: false, clearGrading: false, goodFeedback: false, caring: false,
+    lectureHeavy: false, groupProjects: false,
+    avoidTestHeavy: false, avoidHomeworkHeavy: false, avoidStrictAttendance: false, avoidPopQuizzes: false,
   });
 
-  const prioritySelectedCount = PRIORITY_ITEMS.filter(i => prefs[i.key]).length;
-  const priorityFull = prioritySelectedCount >= MAX_PRIORITY_PICKS;
+  const priorityCount  = PRIORITY_ITEMS.filter(i => prefs[i.key]).length;
+  const priorityFull   = priorityCount >= MAX_PRIORITY_PICKS;
+  const avoidCount     = AVOID_ITEMS.filter(i => prefs[i.key]).length;
 
   const togglePriority = (key: keyof Preferences) => {
-    const isSelected = prefs[key];
-    // Block picking more when at limit
-    if (!isSelected && priorityFull) return;
-    setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
+    if (!prefs[key] && priorityFull) return;
+    setPrefs(p => ({ ...p, [key]: !p[key] }));
   };
+  const toggle = (key: keyof Preferences) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
-  const toggle = (key: keyof Preferences) => {
-    setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const avoidSelectedCount = AVOID_ITEMS.filter(i => prefs[i.key]).length;
+  const canSubmit = priorityCount > 0;
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="h-full font-body bg-[var(--bg)] text-[var(--text)] relative overflow-hidden flex flex-col">
+      <div className="sa-page-bg" aria-hidden />
+
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto scrollbar-themed">
+        <div className="max-w-[680px] mx-auto px-5 sm:px-8 py-5 pb-10">
+
+          {/* Back */}
+          <motion.button
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={onBack}
+            className="flex items-center gap-2 text-[var(--sub)] hover:text-[var(--text)] transition-colors text-sm font-semibold mb-7"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </motion.button>
+
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-5 h-[1.5px] bg-[var(--blue)]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--blue)]">Step 3 of 3</span>
+            </div>
+            <h1 className="font-heading font-extrabold text-[clamp(28px,4vw,44px)] leading-[1.0] tracking-[-1.5px] mb-2">
+              What kind of professor <span className="gradient-text">fits you?</span>
+            </h1>
+            <p className="text-[var(--sub)] text-[15px] leading-relaxed">
+              Pick up to <strong className="text-[var(--text)]">3 priorities</strong> that matter most to you — we'll rank professors around them.
+            </p>
+          </motion.div>
+
+          {/* Sections */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col gap-8"
+          >
+
+            {/* ── 1. Priorities ── */}
+            <Section
+              emoji="⚡"
+              title="What matters most to you?"
+              badge={<PriorityDots count={priorityCount} max={MAX_PRIORITY_PICKS} />}
+            >
+              {priorityFull && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mb-3 px-3 py-2 rounded-xl text-[12px] font-semibold text-[var(--blue)] overflow-hidden"
+                  style={{ background: 'rgba(91,124,250,0.08)', border: '1px solid rgba(91,124,250,0.2)' }}
+                >
+                  ✓ You've picked your top 3 — looking good!
+                </motion.div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {PRIORITY_ITEMS.map((item, i) => (
+                  <motion.div
+                    key={item.key}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.32, delay: 0.18 + i * 0.055, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <PrefCard
+                      prefKey={item.key}
+                      label={item.label}
+                      desc={item.desc}
+                      Icon={item.icon}
+                      checked={prefs[item.key]}
+                      onToggle={togglePriority}
+                      disabled={priorityFull && !prefs[item.key]}
+                      variant="priority"
+                    />
+                  </motion.div>
+                ))}
+              </div>
+            </Section>
+
+            {/* Divider */}
+            <div className="h-px bg-[var(--border)]" />
+
+            {/* ── 2. Teaching style ── */}
+            <Section
+              emoji="📚"
+              title="How do you like to learn?"
+              badge={
+                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full text-[var(--sub)]"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  Optional
+                </span>
+              }
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {STYLE_ITEMS.map((item, i) => (
+                  <motion.div
+                    key={item.key}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.32, delay: 0.28 + i * 0.055, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <PrefCard
+                      prefKey={item.key}
+                      label={item.label}
+                      desc={item.desc}
+                      Icon={item.icon}
+                      checked={prefs[item.key]}
+                      onToggle={toggle}
+                      variant="style"
+                    />
+                  </motion.div>
+                ))}
+              </div>
+            </Section>
+
+            {/* Divider */}
+            <div className="h-px bg-[var(--border)]" />
+
+            {/* ── 3. Dealbreakers ── */}
+            <Section
+              emoji="🚫"
+              title="Anything you'd rather avoid?"
+              badge={
+                avoidCount > 0
+                  ? (
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                      style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.25)', color: 'var(--red)' }}>
+                      {avoidCount} selected
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full text-[var(--sub)]"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      Optional
+                    </span>
+                  )
+              }
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {AVOID_ITEMS.map((item, i) => (
+                  <motion.div
+                    key={item.key}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.32, delay: 0.36 + i * 0.055, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <PrefCard
+                      prefKey={item.key}
+                      label={item.label}
+                      desc={item.desc}
+                      Icon={item.icon}
+                      checked={prefs[item.key]}
+                      onToggle={toggle}
+                      variant="avoid"
+                    />
+                  </motion.div>
+                ))}
+              </div>
+            </Section>
+
+            {/* ── Submit ── */}
+            <div className="pt-2">
+              {!canSubmit && (
+                <p className="text-center text-[12px] text-[var(--sub)] mb-3">
+                  Pick at least one priority to continue
+                </p>
+              )}
+              <motion.button
+                type="button"
+                onClick={() => onGenerateSchedule(prefs)}
+                disabled={isLoading || !canSubmit}
+                whileHover={canSubmit && !isLoading ? { y: -2, scale: 1.01 } : {}}
+                whileTap={canSubmit && !isLoading ? { scale: 0.98 } : {}}
+                className="relative w-full py-4 rounded-2xl font-heading font-bold text-[15px] tracking-tight text-white flex items-center justify-center gap-2.5 transition-opacity focus:outline-none overflow-hidden"
+                style={{
+                  background: canSubmit
+                    ? 'linear-gradient(135deg, var(--blue) 0%, var(--blue2) 50%, var(--orange2) 100%)'
+                    : 'rgba(255,255,255,0.07)',
+                  boxShadow: canSubmit
+                    ? '0 6px 32px rgba(91,124,250,0.28), 0 2px 12px rgba(255,107,53,0.16)'
+                    : 'none',
+                  opacity: !canSubmit ? 0.5 : 1,
+                  cursor: !canSubmit ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {/* Shine */}
+                {canSubmit && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 55%)' }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  {isLoading
+                    ? <><Loader2 className="w-5 h-5 animate-spin" /> Finding matches…</>
+                    : <><Sparkles className="w-5 h-5" /> {buttonLabel || 'Find My Best Professors'}</>
+                  }
+                </span>
+              </motion.button>
+            </div>
+
+          </motion.div>
+        </div>
+      </div>
+
       <ProcessingOverlay
         isVisible={isLoading}
         title="Finding Your Best Matches"
         steps={['Analyzing your preferences...', 'Scoring professors...', 'Ranking recommendations...']}
         icon="recommend"
       />
-      <button onClick={onBack} className="mb-4 text-white/60 hover:text-white flex items-center gap-2 transition-colors font-semibold">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white/5 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/10 overflow-hidden"
-      >
-        {/* HEADER */}
-        <div className="bg-[#0046FF]/10 p-8 text-center border-b border-white/10">
-          <Sparkles className="w-10 h-10 mx-auto mb-3 text-[#FF8040]" />
-          <h2 className="text-3xl font-bold tracking-tight text-white">Tell us about your priorities</h2>
-          <p className="text-white/50 mt-2 text-sm font-medium">
-            This takes 30 seconds. We'll use it to rank professors just for you.
-          </p>
-        </div>
-
-        <div className="p-8 space-y-10">
-
-          {/* ── SECTION 1: TOP PRIORITIES (max 3) ── */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-white font-bold text-base">
-                What matters most to you in a professor?
-              </h3>
-              {/* Live counter */}
-              <motion.span
-                key={prioritySelectedCount}
-                initial={{ scale: 1.3 }}
-                animate={{ scale: 1 }}
-                className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-colors duration-200 ${
-                  priorityFull
-                    ? 'bg-[#0046FF]/20 border-[#0046FF]/50 text-[#0046FF]'
-                    : 'bg-white/5 border-white/10 text-white/50'
-                }`}
-              >
-                {prioritySelectedCount}/{MAX_PRIORITY_PICKS} chosen
-              </motion.span>
-            </div>
-            <p className="text-xs text-white/40 mb-4">
-              Pick up to {MAX_PRIORITY_PICKS} — choosing fewer gives us a stronger signal.
-            </p>
-            <div className="grid md:grid-cols-2 gap-3">
-              {PRIORITY_ITEMS.map(item => (
-                <PriorityCard
-                  key={item.key}
-                  prefKey={item.key}
-                  label={item.label}
-                  desc={item.desc}
-                  icon={item.icon}
-                  checked={prefs[item.key]}
-                  onToggle={togglePriority}
-                  disabled={priorityFull && !prefs[item.key]}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* ── SECTION 2: TEACHING STYLE ── */}
-          <div>
-            <h3 className="text-white font-bold text-base mb-1">
-              Any preference on teaching style?
-            </h3>
-            <p className="text-xs text-white/40 mb-4">Optional — skip if you don't have a strong preference.</p>
-            <div className="grid md:grid-cols-2 gap-3">
-              {STYLE_ITEMS.map(item => (
-                <StyleCard
-                  key={item.key}
-                  prefKey={item.key}
-                  label={item.label}
-                  desc={item.desc}
-                  icon={item.icon}
-                  checked={prefs[item.key]}
-                  onToggle={toggle}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* ── SECTION 3: DEALBREAKERS ── */}
-          <div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-white font-bold text-base">
-                  What would genuinely put you off?
-                </h3>
-                {avoidSelectedCount > 0 && (
-                  <span className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-full">
-                    {avoidSelectedCount} flagged
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-white/40 mb-4">
-                Select only what would genuinely bother you — we'll push those professors down.
-              </p>
-              <div className="grid md:grid-cols-2 gap-3">
-                {AVOID_ITEMS.map(item => (
-                  <AvoidCard
-                    key={item.key}
-                    prefKey={item.key}
-                    label={item.label}
-                    desc={item.desc}
-                    icon={item.icon}
-                    checked={prefs[item.key]}
-                    onToggle={toggle}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ── SUBMIT ── */}
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onGenerateSchedule(prefs)}
-            disabled={isLoading}
-            className="w-full bg-[#0046FF] hover:bg-[#0036CC] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#0046FF]/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-lg"
-          >
-            {isLoading
-              ? (<>Processing <Loader2 className="animate-spin w-5 h-5" /></>)
-              : (<><Sparkles className="w-5 h-5" /> {buttonLabel || 'Find My Best Professors'}</>)
-            }
-          </motion.button>
-
-        </div>
-      </motion.div>
     </div>
   );
 }

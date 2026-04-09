@@ -170,7 +170,7 @@ export default function WelcomePage({ onGetStarted, onSignIn }: WelcomePageProps
                 <span className="sa-check sa-check--orange">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff6b35"><circle cx="12" cy="12" r="12"/><path d="M9 12.5l2 2 4-4" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </span>
-                Get professor recommendations matched to your style
+                Get course and professor recommendations for next semester
               </li>
             </ul>
           </div>
@@ -299,11 +299,11 @@ function HeroVisual() {
 
         {/* Info pills */}
         <div className="flex gap-2">
-          <span className="px-2.5 py-1 rounded-full bg-[var(--accent-purple)]/10 border border-[var(--accent-purple)]/20 text-[var(--accent-purple)] text-xs font-medium">
-            MWF 10:00 AM
-          </span>
           <span className="px-2.5 py-1 rounded-full bg-[var(--accent-green)]/10 border border-[var(--accent-green)]/20 text-[var(--accent-green)] text-xs font-medium">
             3 Credits
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-[var(--accent-purple)]/10 border border-[var(--accent-purple)]/20 text-[var(--accent-purple)] text-xs font-medium">
+            93% Would Take Again
           </span>
         </div>
 
@@ -334,7 +334,7 @@ function HeroVisual() {
       <div className="orbit-badge badge-drift-3 top-[28%] left-[-2%] shadow-lg">
         <span className="flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-[var(--accent-coral)]" />
-          3 Spots Left
+          Easy Grading
         </span>
       </div>
     </div>

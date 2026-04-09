@@ -7,9 +7,11 @@ interface LayoutProps {
   user?: { name: string; picture?: string } | null;
   onSignOut?: () => void;
   onSignIn?: () => void;
+  /** Clamp content to viewport height (upload / transcript / onboarding flows) */
+  fullViewport?: boolean;
 }
 
-export default function Layout({ children, onLogoClick, user, onSignOut, onSignIn }: LayoutProps) {
+export default function Layout({ children, onLogoClick, user, onSignOut, onSignIn, fullViewport }: LayoutProps) {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -105,7 +107,13 @@ export default function Layout({ children, onLogoClick, user, onSignOut, onSignI
       </nav>
 
       {/* Page Content */}
-      <main className="pt-24 px-4 pb-12 relative z-10">
+      <main
+        className={
+          fullViewport
+            ? 'relative z-10 pt-16 h-[calc(100vh-4rem)] min-h-0 overflow-hidden'
+            : 'relative z-10 pt-24 px-4 pb-12'
+        }
+      >
         {children}
       </main>
     </div>

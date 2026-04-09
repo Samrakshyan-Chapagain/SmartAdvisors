@@ -172,7 +172,7 @@ export default function LoginPage({ googleOAuthEnabled, onGuestContinue, onLogin
           </motion.button>
 
           <p className="text-center text-white/30 text-xs mt-4">
-            Guest users get professor recommendations. Sign in for full degree planning.
+            Guest users get course and professor recommendations for next semester. Sign in for full degree planning.
           </p>
 
           {/* Privacy note */}

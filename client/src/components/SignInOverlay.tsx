@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Compass, Eye, EyeOff, Star, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Compass, Star, ArrowRight } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import gsap from 'gsap';
 
@@ -93,7 +93,6 @@ export default function SignInOverlay({
   onGuestContinue,
   onClose,
 }: SignInOverlayProps) {
-  const [showPass, setShowPass] = useState(false);
 
   /* ── GSAP refs ── */
   const leftRef = useRef<HTMLDivElement>(null);
@@ -262,8 +261,8 @@ export default function SignInOverlay({
 
                   {/* Tag row */}
                   <div className="si-mc-tags">
-                    <span className="si-mc-tag">TTh 2:00 PM</span>
                     <span className="si-mc-tag">3 Credits</span>
+                    <span className="si-mc-tag">91% Would Take Again</span>
                   </div>
 
                   {/* Bottom row */}
@@ -346,55 +345,8 @@ export default function SignInOverlay({
                   <span className="signin-divider-line" />
                 </motion.div>
 
-                {/* 5. Email */}
+                {/* 5. Continue as Guest */}
                 <motion.div {...stagger(6)}>
-                  <label className="si-label">Email address</label>
-                  <input
-                    type="email"
-                    className="si-input"
-                    placeholder="your@mavs.uta.edu"
-                    autoComplete="email"
-                  />
-                </motion.div>
-
-                {/* 6. Password */}
-                <motion.div className="si-field-password" {...stagger(6)}>
-                  <label className="si-label">Password</label>
-                  <div className="si-password-wrap">
-                    <input
-                      type={showPass ? 'text' : 'password'}
-                      className="si-input"
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      className="si-eye"
-                      onClick={() => setShowPass(!showPass)}
-                      aria-label={showPass ? 'Hide password' : 'Show password'}
-                    >
-                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <div className="si-forgot-row">
-                    <button type="button" className="si-forgot">Forgot password?</button>
-                  </div>
-                </motion.div>
-
-                {/* 7. Sign In button */}
-                <motion.div {...stagger(7)}>
-                  <button className="si-submit-btn">Sign In</button>
-                </motion.div>
-
-                {/* 8. OR divider */}
-                <motion.div className="si-divider" {...stagger(8)}>
-                  <span className="signin-divider-line" />
-                  <span className="signin-divider-text">or</span>
-                  <span className="signin-divider-line" />
-                </motion.div>
-
-                {/* 9. Continue as Guest */}
-                <motion.div {...stagger(8)}>
                   <button onClick={onGuestContinue} className="si-guest-btn">
                     Continue as Guest
                   </button>
@@ -402,14 +354,9 @@ export default function SignInOverlay({
 
                 {/* 10. Caption */}
                 <motion.p className="si-caption" {...stagger(9)}>
-                  Guest users get professor recommendations. Sign in for full degree planning.
+                  Guest users get course and professor recommendations for next semester. Sign in for full degree planning.
                 </motion.p>
 
-                {/* 11. Sign up link */}
-                <motion.p className="si-signup" {...stagger(9)}>
-                  Don&apos;t have an account?{' '}
-                  <button type="button" className="si-signup-link">Sign up free</button>
-                </motion.p>
               </motion.div>
             </div>
           </div>

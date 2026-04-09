@@ -19,6 +19,8 @@ from .scripts.recommendation_engine import (
     generate_degree_plan,
     parse_prereq_string,
     normalize_code,
+    expand_completed_with_prereqs,
+    _build_global_course_map,
 )
 from .scripts.parse_transcript import extract_all_courses
 
@@ -164,6 +166,29 @@ def calculate_match_score(professor_obj, user_prefs):
     return round(final, 1)
 
 
+def _annotate_match_percent(course_lists):
+    """
+    Add matchPercent (0-100) to each professor dict, normalized from raw matchScore
+    across all professors in this API response (required + electives).
+    """
+    all_profs = []
+    for lst in course_lists:
+        for entry in lst:
+            for p in entry.get('professors') or []:
+                all_profs.append(p)
+    if not all_profs:
+        return
+    scores = [float(p.get('matchScore') or 0) for p in all_profs]
+    lo, hi = min(scores), max(scores)
+    span = hi - lo
+    for p in all_profs:
+        s = float(p.get('matchScore') or 0)
+        if span > 1e-9:
+            p['matchPercent'] = int(round(100 * (s - lo) / span))
+        else:
+            p['matchPercent'] = 100
+
+
 def _build_professors_for_course(code, user_prefs=None):
     """
     Look up top-3 professors for a course code.
@@ -285,6 +310,7 @@ def parse_transcript():
         file.save(temp_path)
 
         courses = extract_all_courses(temp_path)
+        print(f"  → Extracted {len(courses)} courses: {courses[:15]}{'...' if len(courses) > 15 else ''}", file=sys.stderr)
 
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -489,6 +515,8 @@ def get_recommendations():
             if normalize_code(c['course_id']) in normalized_completed
         )
 
+        _annotate_match_percent([required, electives])
+
         return jsonify({
             'success': True,
             'recommendations': required,
@@ -517,13 +545,14 @@ def degree_plan():
     """Generate a semester-by-semester degree plan."""
     try:
         data = request.get_json(force=True)
-        department = data.get('department', 'CS')
+        department = data.get('department', 'CE')
         completed_courses = data.get('completed_courses', [])
         try:
             credits_per_semester = int(data.get('credits_per_semester', 15))
         except (ValueError, TypeError):
             credits_per_semester = 15
         credits_per_semester = max(3, min(21, credits_per_semester))
+        print(f"\n=== DEGREE PLAN ROUTE ===\n  department={department}  completed={len(completed_courses)} courses  cps={credits_per_semester}", file=sys.stderr)
 
         selected_next = data.get('selected_next_semester', None)
         start_semester = data.get('start_semester', None)
@@ -639,6 +668,20 @@ def degree_plan():
         completed_count = completed_req_count + completed_elective_count
         completed_hours = completed_req_hours + completed_elective_hours_total + completed_core_hours
 
+        # Prereq expansion (same as filter_eligible_courses_unique) for missingPrereqs on electives
+        degree_map = {normalize_code(c['course_id']): c for c in all_courses}
+        global_map = _build_global_course_map()
+        merged_map = {**global_map, **degree_map}
+        expanded_completed = expand_completed_with_prereqs(set(normalized_completed), merged_map)
+
+        def _missing_prereqs(course_row):
+            prereq_list = parse_prereq_string(course_row.get('pre_requisites', '') or '')
+            missing = []
+            for p in prereq_list:
+                if p not in expanded_completed:
+                    missing.append(p)
+            return missing
+
         # Build elective groups for frontend (grouped by elective_group)
         # Includes completed electives marked as taken so the UI can show progress
         elective_by_group = {}
@@ -666,6 +709,7 @@ def degree_plan():
                 'code': code,
                 'name': c.get('course_name', ''),
                 'creditHours': hrs,
+                'missingPrereqs': _missing_prereqs(c),
                 **(({'taken': True}) if is_taken else {}),
             })
         elective_groups = sorted(elective_by_group.values(), key=lambda x: x['group'])

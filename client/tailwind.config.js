@@ -9,6 +9,7 @@ export default {
         fontFamily: {
           heading: ['"Bricolage Grotesque"', 'system-ui', 'sans-serif'],
           sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+          body: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         },
         colors: {
           ds: {
