@@ -33,6 +33,12 @@ function isValidElective(c: unknown): c is ElectiveCourse {
   return Array.isArray(o.missingPrereqs) && o.missingPrereqs.every((x) => typeof x === 'string');
 }
 
+function isSelectableElective(c: ElectiveCourse): boolean {
+  if (c.taken) return false;
+  if (typeof c.isEligible === 'boolean') return c.isEligible;
+  return c.missingPrereqs.length === 0;
+}
+
 function initialYearDefault(): string {
   return String(new Date().getFullYear() + 1);
 }
@@ -182,6 +188,11 @@ export default function PlanDegreePage({
 
   const tryToggleCourse = useCallback(
     (course: Course | ElectiveCourse) => {
+      if ('missingPrereqs' in course && !isSelectableElective(course)) {
+        setShakeTarget(course.id);
+        setShakeTick((x) => x + 1);
+        return;
+      }
       setSelected((prev) => {
         const next = new Set(prev);
         if (next.has(course.id)) {
@@ -217,15 +228,22 @@ export default function PlanDegreePage({
 
   const submitPlan = useCallback(() => {
     if (selected.size === 0) return;
+    const chosenElectiveIds = new Set(wishlist);
+    for (const id of selected) {
+      if (!requiredIds.has(id)) {
+        chosenElectiveIds.add(id);
+      }
+    }
     const plan: DegreePlan = {
       selectedCourseIds: Array.from(selected),
+      chosenElectiveIds: Array.from(chosenElectiveIds),
       season,
       year,
       maxHoursPerSemester: maxHrs,
       includeSummer,
     };
     onComplete(plan);
-  }, [selected, season, year, maxHrs, includeSummer, onComplete]);
+  }, [selected, wishlist, requiredIds, season, year, maxHrs, includeSummer, onComplete]);
 
   const loadStatusText = useMemo(() => {
     if (selected.size === 0) return { text: 'Nothing selected', cls: 'text-[var(--t3)]' };
@@ -671,7 +689,7 @@ export default function PlanDegreePage({
                       </div>
                       <ul className="max-h-[200px] space-y-2 overflow-y-auto pr-0.5 scrollbar-themed">
                         {[...eligibleWished, ...ineligibleWished].map((c) => {
-                          const ok = c.missingPrereqs.length === 0;
+                          const ok = isSelectableElective(c);
                           return (
                             <li key={c.id}>
                               <div
@@ -844,12 +862,15 @@ export default function PlanDegreePage({
                             <ul className="space-y-2">
                               {sortedElectives.map((c) => {
                                 const wish = wishlist.has(c.id);
+                                const eligible = isSelectableElective(c);
                                 return (
                                   <CourseRow key={`${c.id}-${shakeTarget === c.id ? shakeTick : 0}`} course={c} variant="elec"
-                                    selected={selected.has(c.id)} dim={!selected.has(c.id) && totalHrs + c.creditHours > maxHrs}
+                                    selected={selected.has(c.id)} dim={!eligible || (!selected.has(c.id) && totalHrs + c.creditHours > maxHrs)}
                                     shake={shakeTarget === c.id ? shakeTick : 0} onToggle={() => tryToggleCourse(c)}
-                                    badge={wish && c.missingPrereqs.length === 0 ? (
+                                    badge={wish && eligible ? (
                                       <span className="rounded-md bg-[var(--purple-dim)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--purple)]">★ Wishlist</span>
+                                    ) : !eligible ? (
+                                      <span className="rounded-md bg-[rgba(240,96,96,0.08)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--red)]">Missing prereqs</span>
                                     ) : null} />
                                 );
                               })}
@@ -881,12 +902,15 @@ export default function PlanDegreePage({
                               <ul className="space-y-2">
                                 {groupCourses.map((c) => {
                                   const wish = wishlist.has(c.id);
+                                  const eligible = isSelectableElective(c);
                                   return (
                                     <CourseRow key={`${c.id}-${shakeTarget === c.id ? shakeTick : 0}`} course={c} variant="elec"
-                                      selected={selected.has(c.id)} dim={!selected.has(c.id) && totalHrs + c.creditHours > maxHrs}
+                                      selected={selected.has(c.id)} dim={!eligible || (!selected.has(c.id) && totalHrs + c.creditHours > maxHrs)}
                                       shake={shakeTarget === c.id ? shakeTick : 0} onToggle={() => tryToggleCourse(c)}
-                                      badge={wish && c.missingPrereqs.length === 0 ? (
+                                      badge={wish && eligible ? (
                                         <span className="rounded-md bg-[var(--purple-dim)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--purple)]">★ Wishlist</span>
+                                      ) : !eligible ? (
+                                        <span className="rounded-md bg-[rgba(240,96,96,0.08)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--red)]">Missing prereqs</span>
                                       ) : null} />
                                   );
                                 })}

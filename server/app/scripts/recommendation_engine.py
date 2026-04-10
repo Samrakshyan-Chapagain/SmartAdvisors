@@ -247,35 +247,43 @@ def _build_global_course_map():
     return course_map
 
 
-def filter_eligible_courses_unique(all_courses, completed_courses):
+def filter_eligible_courses_unique(all_courses, completed_courses, in_progress_courses=None):
     normalized_completed = set(normalize_code(c) for c in completed_courses)
+    normalized_in_progress = set(normalize_code(c) for c in (in_progress_courses or []))
 
     # Build course map from degree courses + global courses for prereq expansion
     course_map = {normalize_code(c['course_id']): c for c in all_courses}
     global_map = _build_global_course_map()
     merged_map = {**global_map, **course_map}  # degree courses take priority
 
-    # Expand completed set: infer all implied prerequisites from transcript courses
-    normalized_completed = expand_completed_with_prereqs(normalized_completed, merged_map)
+    # For prereq checking, treat in-progress courses as done (they'll be
+    # completed by next semester).  For the eligible list, exclude both
+    # completed AND in-progress (student already has them).
+    prereq_check_set = normalized_completed | normalized_in_progress
+    prereq_check_set = expand_completed_with_prereqs(prereq_check_set, merged_map)
+
+    # Also expand the plain completed set (for ENGR/UNIV either-or below)
+    expanded_completed = expand_completed_with_prereqs(normalized_completed, merged_map)
 
     eligible = dict()
     for course in all_courses:
         c_id = normalize_code(course['course_id'])
-        if c_id in normalized_completed or c_id in eligible:
+        if c_id in expanded_completed or c_id in normalized_in_progress or c_id in eligible:
             continue
-        if is_course_eligible(course, normalized_completed, merged_map):
+        if is_course_eligible(course, prereq_check_set, merged_map):
             eligible[c_id] = course
             coreqs = course.get('co_requisites', '') or ''
             coreq_list = parse_prereq_string(coreqs)
             for ccode in coreq_list:
-                if ccode not in normalized_completed and ccode in merged_map and ccode not in eligible:
+                if ccode not in expanded_completed and ccode not in normalized_in_progress and ccode in merged_map and ccode not in eligible:
                     co_course = merged_map[ccode]
-                    if is_course_eligible(co_course, normalized_completed, merged_map):
+                    if is_course_eligible(co_course, prereq_check_set, merged_map):
                         eligible[ccode] = co_course
 
     # Either/or rules: ENGR 1101 and UNIV are alternatives -- only need one
-    completed_univ = any(c.startswith('UNIV') for c in normalized_completed)
-    completed_engr1101 = 'ENGR 1101' in normalized_completed
+    all_done = expanded_completed | normalized_in_progress
+    completed_univ = any(c.startswith('UNIV') for c in all_done)
+    completed_engr1101 = 'ENGR 1101' in all_done
     if completed_univ:
         eligible.pop('ENGR 1101', None)
     if completed_engr1101:
@@ -300,6 +308,16 @@ def get_elective_budgets(all_courses):
     return budgets
 
 
+def elective_group_label(group_name):
+    """Return a user-facing elective group label from DB group value."""
+    raw = normalize_code(group_name or "")
+    if not raw:
+        return "Elective"
+    words = raw.replace("_", "-").split("-")
+    titled = " ".join(w.capitalize() for w in words if w)
+    return f"{titled} Elective"
+
+
 def generate_degree_plan(
     all_courses,
     completed_courses,
@@ -309,12 +327,13 @@ def generate_degree_plan(
     start_year=None,
     include_summer=False,
     chosen_electives=None,
+    in_progress_courses=None,
 ):
     """
-    Generate a semester-by-semester degree plan.
-    Uses greedy topological scheduling: each semester, pick eligible courses
-    prioritized by unlock potential (how many other courses depend on this one),
-    required-first, and fill up to credit hour target.
+    Generate a semester-by-semester degree plan and planning warnings.
+    Semester 1 honors selected_next exactly (plus required co-reqs).
+    Later semesters use a constrained scheduler optimized for correctness and
+    chosen-elective consistency, not simply fullest credit-hour packing.
     """
 
     # --- Semester label generator ---
@@ -347,17 +366,21 @@ def generate_degree_plan(
     merged_map = {**global_map, **course_map}
 
     normalized_completed = set(normalize_code(c) for c in completed_courses)
+    normalized_in_progress = set(normalize_code(c) for c in (in_progress_courses or []))
+    # Combine completed + in-progress for prereq checking
+    all_done = normalized_completed | normalized_in_progress
+    all_done = expand_completed_with_prereqs(all_done, merged_map)
     normalized_completed = expand_completed_with_prereqs(normalized_completed, merged_map)
 
     # Apply ENGR 1101 / UNIV either-or rule
-    completed_univ = any(c.startswith('UNIV') for c in normalized_completed)
-    completed_engr1101 = 'ENGR 1101' in normalized_completed
+    completed_univ = any(c.startswith('UNIV') for c in all_done)
+    completed_engr1101 = 'ENGR 1101' in all_done
 
-    # Build remaining courses set (not yet completed)
+    # Build remaining courses set (not yet completed and not in-progress)
     remaining = {}
     for course in all_courses:
         code = normalize_code(course['course_id'])
-        if code not in normalized_completed:
+        if code not in all_done:
             remaining[code] = course
 
     # Apply either-or: remove the alternative if one is completed
@@ -422,10 +445,18 @@ def generate_degree_plan(
                 if _inject_external_prereq(coreq, seen_prereqs):
                     added = True
 
+    warnings = []
+
     # Filter electives to only include user-chosen ones (if provided and non-empty),
     # or auto-cap to budget per group when not provided / empty
     if chosen_electives is not None and len(chosen_electives) > 0:
         chosen_normalized = set(normalize_code(c) for c in chosen_electives)
+        missing_choices = sorted(code for code in chosen_normalized if code not in remaining and code not in all_done)
+        if missing_choices:
+            warnings.append(
+                "Some selected electives could not be planned because they were not found in the remaining degree requirements: "
+                + ", ".join(missing_choices)
+            )
         for code in list(remaining):
             course = remaining[code]
             if course.get('requirement_type', 'required').lower() == 'elective':
@@ -460,6 +491,9 @@ def generate_degree_plan(
             else:
                 remaining.pop(code)
 
+    chosen_elective_set = set(normalize_code(c) for c in (chosen_electives or []))
+    elective_budgets = get_elective_budgets(all_courses)
+
     # Build reverse dependency map: for each course, how many other courses need it as a prereq
     unlock_count = {}
     for code, course in remaining.items():
@@ -484,7 +518,51 @@ def generate_degree_plan(
         coreqs = course.get('co_requisites', '') or ''
         return parse_prereq_string(coreqs)
 
-    planned_completed = set(normalized_completed)
+    def elective_hours_remaining(completed_like):
+        remaining_hours = dict(elective_budgets)
+        for c in all_courses:
+            if c.get('requirement_type') != 'elective':
+                continue
+            code = normalize_code(c['course_id'])
+            group = c.get('elective_group')
+            if not group:
+                continue
+            if code in completed_like and group in remaining_hours:
+                remaining_hours[group] = max(0, remaining_hours[group] - get_credit_hours(c))
+        return remaining_hours
+
+    def downstream_unlock_score(code, completed_like):
+        score = 0
+        next_completed = set(completed_like)
+        next_completed.add(code)
+        for other_code, other_course in remaining.items():
+            if other_code == code:
+                continue
+            if not is_course_eligible(other_course, completed_like, merged_map) and is_course_eligible(other_course, next_completed, merged_map):
+                score += 1
+        return score
+
+    def course_priority(code, completed_like, semester_hours):
+        course = remaining[code]
+        hrs = get_credit_hours(course)
+        is_required = 1 if course.get('requirement_type', '').lower() == 'required' else 0
+        group = course.get('elective_group')
+        group_need = 0
+        if not is_required and group:
+            group_need = elective_hours_remaining(completed_like).get(group, 0)
+        unlocks = max(unlock_count.get(code, 0), downstream_unlock_score(code, completed_like))
+        fit_gap = abs(max(0, credits_per_semester - (semester_hours + hrs)))
+        return (
+            -is_required,
+            -(1 if group_need > 0 else 0),
+            -unlocks,
+            -min(group_need, hrs),
+            fit_gap,
+            hrs,
+            code,
+        )
+
+    planned_completed = set(all_done)
     semesters = []
     semester_num = 0
     MAX_SEMESTERS = 30  # Safety net: no degree should exceed ~30 semesters
@@ -504,6 +582,7 @@ def generate_degree_plan(
                     'electiveGroup': c.get('elective_group'),
                 })
             if leftover:
+                warnings.append("Planner stopped because some remaining courses could not be scheduled within 30 semesters.")
                 semesters.append({
                     'semester': semester_num,
                     'label': 'Remaining (could not schedule)',
@@ -546,6 +625,7 @@ def generate_degree_plan(
                 eligible = list(cycle_courses)
             else:
                 # True deadlock: remaining courses exist but none eligible
+                warnings.append("Planner found remaining courses that could not be scheduled because prerequisites could not be satisfied from the chosen path.")
                 leftover = []
                 for code in list(remaining):
                     c = remaining[code]
@@ -569,6 +649,12 @@ def generate_degree_plan(
         if semester_num == 1 and selected_next:
             normalized_picks = [normalize_code(c) for c in selected_next]
             semester_courses = [c for c in normalized_picks if c in eligible]
+            dropped_picks = [c for c in normalized_picks if c not in eligible]
+            if dropped_picks:
+                warnings.append(
+                    "Some selected next-semester courses were not eligible and were excluded from the plan: "
+                    + ", ".join(dropped_picks)
+                )
             # Also pull in corequisites of selected courses
             extra_coreqs = []
             for code in semester_courses:
@@ -577,48 +663,50 @@ def generate_degree_plan(
                         extra_coreqs.append(coreq)
             semester_courses.extend(extra_coreqs)
         else:
-            # Sort eligible by: required first, then unlock potential (desc), then credit hours (desc)
-            def sort_key(code):
-                c = remaining[code]
-                is_required = 1 if c.get('requirement_type', '').lower() == 'required' else 0
-                unlocks = unlock_count.get(code, 0)
-                hrs = get_credit_hours(c)
-                return (-is_required, -unlocks, -hrs)
-
-            eligible.sort(key=sort_key)
-
             semester_courses = []
             semester_hours = 0
 
-            for code in eligible:
-                if code in semester_courses:
-                    continue  # already added as a corequisite
-                c = remaining[code]
-                hrs = get_credit_hours(c)
+            while True:
+                eligible_now = [
+                    code for code in eligible
+                    if code not in semester_courses and is_course_eligible(remaining[code], planned_completed | set(semester_courses), merged_map)
+                ]
+                eligible_now.sort(key=lambda code: course_priority(code, planned_completed | set(semester_courses), semester_hours))
+                picked_this_round = False
 
-                # Check if adding this course (+ its coreqs) fits
-                coreqs = get_coreqs(c)
-                coreq_hours = 0
-                coreq_codes = []
-                for coreq in coreqs:
-                    if coreq in remaining and coreq not in semester_courses:
-                        coreq_hours += get_credit_hours(remaining[coreq])
-                        coreq_codes.append(coreq)
+                for code in eligible_now:
+                    if code in semester_courses:
+                        continue  # already added as a corequisite
+                    c = remaining[code]
+                    hrs = get_credit_hours(c)
 
-                # Also check reverse: if any course already in this semester
-                # lists this course as a corequisite, pair them together
-                for scheduled in list(semester_courses):
-                    for coreq in get_coreqs(remaining.get(scheduled, {})):
-                        if coreq in remaining and coreq not in semester_courses and coreq not in coreq_codes:
-                            if coreq == code or coreq in eligible:
-                                coreq_hours += get_credit_hours(remaining[coreq])
-                                coreq_codes.append(coreq)
+                    # Check if adding this course (+ its coreqs) fits
+                    coreqs = get_coreqs(c)
+                    coreq_hours = 0
+                    coreq_codes = []
+                    coreq_blocked = False
+                    temp_completed = planned_completed | set(semester_courses) | {code}
+                    for coreq in coreqs:
+                        if coreq in remaining and coreq not in semester_courses:
+                            if not is_course_eligible(remaining[coreq], temp_completed, merged_map):
+                                coreq_blocked = True
+                                break
+                            coreq_hours += get_credit_hours(remaining[coreq])
+                            coreq_codes.append(coreq)
 
-                total_add = hrs + coreq_hours
-                if semester_hours + total_add <= credits_per_semester:
-                    semester_courses.append(code)
-                    semester_courses.extend(coreq_codes)
-                    semester_hours += total_add
+                    if coreq_blocked:
+                        continue
+
+                    total_add = hrs + coreq_hours
+                    if semester_hours + total_add <= credits_per_semester:
+                        semester_courses.append(code)
+                        semester_courses.extend(coreq_codes)
+                        semester_hours += total_add
+                        picked_this_round = True
+                        break
+
+                if not picked_this_round:
+                    break
 
                 if semester_hours >= credits_per_semester:
                     break
@@ -665,7 +753,15 @@ def generate_degree_plan(
             planned_completed.add(code)
             remaining.pop(code, None)
 
-    return semesters
+    if chosen_elective_set:
+        unscheduled_chosen = sorted(code for code in chosen_elective_set if code in remaining)
+        if unscheduled_chosen:
+            warnings.append(
+                "Some chosen electives could not be scheduled with the current transcript and selections: "
+                + ", ".join(unscheduled_chosen)
+            )
+
+    return semesters, warnings
 
 
 def get_professor_offerings_for_course(course_code):

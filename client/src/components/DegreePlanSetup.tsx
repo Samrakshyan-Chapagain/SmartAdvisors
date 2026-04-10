@@ -15,6 +15,8 @@ interface ElectiveCourse {
   name: string;
   creditHours: number;
   taken?: boolean;
+  isEligible?: boolean;
+  missingPrereqs?: string[];
 }
 
 interface ElectiveGroup {
@@ -26,6 +28,7 @@ interface ElectiveGroup {
 
 interface DegreePlanSetupProps {
   completedCourses: string[];
+  inProgressCourses?: string[];
   department: string;
   onPlanGenerated: (
     creditsPerSemester: number,
@@ -54,7 +57,7 @@ function getSuggestedSemester(): { semester: string; year: number } {
   return { semester: 'Fall', year };
 }
 
-export default function DegreePlanSetup({ completedCourses, department, onPlanGenerated, isLoading, onBack }: DegreePlanSetupProps) {
+export default function DegreePlanSetup({ completedCourses, inProgressCourses = [], department, onPlanGenerated, isLoading, onBack }: DegreePlanSetupProps) {
   const suggested = getSuggestedSemester();
 
   const [creditsPerSemester, setCreditsPerSemester] = useState(15);
@@ -78,6 +81,7 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             completed_courses: completedCourses,
+            in_progress_courses: inProgressCourses,
             department,
             credits_per_semester: creditsPerSemester,
           }),
@@ -112,14 +116,12 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
     });
   };
 
-  const toggleElective = (code: string) => {
-    // Don't toggle taken electives
-    const isTaken = electiveGroups.some(g => g.courses.some(c => c.code === code && c.taken));
-    if (isTaken) return;
+  const toggleElective = (course: ElectiveCourse) => {
+    if (course.taken || course.isEligible === false) return;
     setChosenElectives(prev => {
       const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
+      if (next.has(course.code)) next.delete(course.code);
+      else next.add(course.code);
       return next;
     });
   };
@@ -300,20 +302,25 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
                         <motion.button
                           key={elective.code}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => toggleElective(elective.code)}
+                          onClick={() => toggleElective(elective)}
+                          disabled={elective.isEligible === false}
                           className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
-                            chosenElectives.has(elective.code)
+                            elective.isEligible === false
+                              ? 'border-red-500/20 bg-red-500/5 opacity-65 cursor-not-allowed'
+                              : chosenElectives.has(elective.code)
                               ? 'border-[#FF8040]/50 bg-[#FF8040]/10 shadow-sm'
                               : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
                           }`}
                         >
                           <div
                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                              chosenElectives.has(elective.code) ? 'border-transparent bg-[#FF8040]' : 'border-white/20'
+                              elective.isEligible === false
+                                ? 'border-red-400/40 bg-transparent'
+                                : chosenElectives.has(elective.code) ? 'border-transparent bg-[#FF8040]' : 'border-white/20'
                             }`}
                           >
                             <AnimatePresence>
-                              {chosenElectives.has(elective.code) && (
+                              {elective.isEligible !== false && chosenElectives.has(elective.code) && (
                                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
                                   <Check className="w-3 h-3 text-white" />
                                 </motion.div>
@@ -326,8 +333,18 @@ export default function DegreePlanSetup({ completedCourses, department, onPlanGe
                               <span className="text-white/30 text-xs bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
                                 {elective.creditHours} hrs
                               </span>
+                              {elective.isEligible === false && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/25">
+                                  Ineligible
+                                </span>
+                              )}
                             </div>
                             <p className="text-white/45 text-xs truncate mt-0.5">{elective.name}</p>
+                            {elective.isEligible === false && elective.missingPrereqs?.length ? (
+                              <p className="text-red-300/80 text-[11px] mt-1">
+                                Missing: {elective.missingPrereqs.join(', ')}
+                              </p>
+                            ) : null}
                           </div>
                         </motion.button>
                       )

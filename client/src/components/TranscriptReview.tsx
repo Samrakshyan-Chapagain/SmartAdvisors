@@ -2,6 +2,7 @@ import { ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface TranscriptReviewProps {
   courses: string[];
+  inProgressCourses?: string[];
   onNext: () => void;
   onBack: () => void;
 }
@@ -18,8 +19,9 @@ function groupByDepartment(courses: string[]): { dept: string; courses: string[]
     .sort((a, b) => b.courses.length - a.courses.length);
 }
 
-export default function TranscriptReview({ courses, onNext, onBack }: TranscriptReviewProps) {
+export default function TranscriptReview({ courses, inProgressCourses = [], onNext, onBack }: TranscriptReviewProps) {
   const groups = groupByDepartment(courses);
+  const inProgressGroups = groupByDepartment(inProgressCourses);
 
   return (
     <div className="h-full font-body bg-[var(--bg)] text-[var(--text)] relative overflow-hidden">
@@ -46,7 +48,11 @@ export default function TranscriptReview({ courses, onNext, onBack }: Transcript
                 <span className="gradient-text">verified.</span>
               </h1>
               <p className="text-[16px] font-normal text-[var(--sub)] leading-[1.7] max-w-[360px]">
-                We found <span className="font-bold text-[var(--blue)]">{courses.length} courses</span> in your history. Next, tell us your preferences so we can match you with the right professors.
+                We found <span className="font-bold text-[var(--blue)]">{courses.length} completed courses</span>
+                {inProgressCourses.length > 0 ? (
+                  <> and <span className="font-bold text-[var(--orange)]">{inProgressCourses.length} in progress</span></>
+                ) : null}
+                {' '}in your history. Next, tell us your preferences so we can match you with the right professors.
               </p>
               <div className="flex flex-col gap-2.5 mt-1">
                 {[
@@ -84,7 +90,8 @@ export default function TranscriptReview({ courses, onNext, onBack }: Transcript
               <div className="pb-1 border-b" style={{ borderColor: 'var(--border)' }}>
                 <h3 className="font-heading font-bold text-xl tracking-[-0.3px] text-[var(--text)]">Transcript verified</h3>
                 <p className="text-[var(--sub)] mt-1 text-[15px]">
-                  <span className="font-semibold text-[var(--blue)]">{courses.length} courses</span> from your history
+                  <span className="font-semibold text-[var(--blue)]">{courses.length} completed</span>
+                  {inProgressCourses.length > 0 ? <> and <span className="font-semibold text-[var(--orange)]">{inProgressCourses.length} in progress</span></> : null}
                 </p>
               </div>
 
@@ -111,6 +118,30 @@ export default function TranscriptReview({ courses, onNext, onBack }: Transcript
                   </div>
                 ) : (
                   <p className="text-[var(--sub)] text-sm italic">No courses found.</p>
+                )}
+
+                {inProgressCourses.length > 0 && (
+                  <div className="mt-6">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sub)] mb-4">In progress</p>
+                    <div className="flex flex-col gap-5 overflow-y-auto scrollbar-themed pr-1 max-h-[200px]">
+                      {inProgressGroups.map(({ dept, courses: deptCourses }) => (
+                        <div key={dept} className="flex flex-col gap-2">
+                          <span className="text-[12px] font-semibold text-[var(--orange)]">{dept} ({deptCourses.length})</span>
+                          <div className="flex flex-wrap gap-2">
+                            {deptCourses.map((course) => (
+                              <span
+                                key={course}
+                                className="py-1.5 px-2.5 rounded-lg text-[13px] font-medium text-[var(--text)]"
+                                style={{ background: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.18)' }}
+                              >
+                                {course}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 

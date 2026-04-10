@@ -32,6 +32,7 @@ interface SemesterPlanViewProps {
     plan: Semester[];
     totalSemesters: number;
     totalRemainingHours: number;
+    warnings?: string[];
     stats?: {
       totalCourses: number;
       totalHours: number;
@@ -193,6 +194,7 @@ function CourseRow({ course }: { course: PlannedCourse }) {
 
 export default function SemesterPlanView({ plan, onBack, onEditPlan, onNewTranscript }: SemesterPlanViewProps) {
   const semesters = plan.plan || [];
+  const warnings = plan.warnings || [];
   const totalCoursesPlanned = semesters.reduce((sum, s) => sum + s.courses.length, 0);
 
   const handlePrint = () => window.print();
@@ -330,6 +332,19 @@ export default function SemesterPlanView({ plan, onBack, onEditPlan, onNewTransc
           </p>
         </div>
       </motion.div>
+
+      {warnings.length > 0 && (
+        <div className="mb-6 space-y-2 no-print">
+          {warnings.map((warning) => (
+            <div
+              key={warning}
+              className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+            >
+              {warning}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -31,6 +31,7 @@ interface ClassData {
   creditHours?: number;
   corequisites?: string;
   electiveGroup?: string;
+  electiveLabel?: string;
   professors: ApiProfessor[];
 }
 
@@ -168,6 +169,17 @@ function splitCode(code: string): { dept: string; num: string } {
   const i = code.trim().lastIndexOf(' ');
   if (i === -1) return { dept: code, num: '' };
   return { dept: code.slice(0, i).trim(), num: code.slice(i + 1).trim() };
+}
+
+function formatElectiveLabel(group?: string, explicitLabel?: string): string | null {
+  if (explicitLabel) return explicitLabel;
+  if (!group) return null;
+  const titled = group
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+  return `${titled} Elective`;
 }
 
 function matchColor(pct: number): string {
@@ -758,6 +770,11 @@ export default function YourRecommendations({ userData, onBack, onExport }: Your
                       <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-[var(--sub)]">{c.courseName}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[var(--sub2)]">
                         <span>{c.creditHours ?? 3} cr</span>
+                        {activeTab === 'electives' && formatElectiveLabel(c.electiveGroup, c.electiveLabel) && (
+                          <span className="rounded-md border border-[var(--orange)]/25 bg-[var(--orange)]/10 px-1.5 py-0.5 font-semibold text-[var(--orange)]">
+                            {formatElectiveLabel(c.electiveGroup, c.electiveLabel)}
+                          </span>
+                        )}
                         <span className="text-[var(--border2)]">·</span>
                         <div className="h-[3px] w-10 overflow-hidden rounded-full bg-[var(--sub2)]">
                           <div className="h-full rounded-full transition-all" style={{ width: `${maxPct}%`, backgroundColor: bar }} />
@@ -800,7 +817,7 @@ export default function YourRecommendations({ userData, onBack, onExport }: Your
                       className="rounded-full border px-2.5 py-1 text-[11px] font-semibold"
                       style={{ borderColor: `${accent}55`, color: accent, background: activeTab === 'required' ? 'rgba(91,124,250,0.1)' : 'rgba(255,107,53,0.1)' }}
                     >
-                      {activeTab === 'required' ? 'Required' : 'Elective'}
+                      {activeTab === 'required' ? 'Required' : formatElectiveLabel(selected.electiveGroup, selected.electiveLabel) || 'Elective'}
                     </span>
                   </div>
                 </div>

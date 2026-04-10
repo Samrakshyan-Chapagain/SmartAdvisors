@@ -64,6 +64,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
   const [file, setFile] = useState<File | null>(null);
   const [department, setDepartment] = useState<string>('');
   const [completedCourses, setCompletedCourses] = useState<string[]>([]);
+  const [inProgressCourses, setInProgressCourses] = useState<string[]>([]);
   const [apiData, setApiData] = useState<ApiRecommendationResponse | null>(null);
   const [userPrefs, setUserPrefs] = useState<Preferences | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -94,6 +95,21 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
       setPlanDegreeData({ student: undefined, requiredCourses: [], electiveCourses: [], electiveGroups: [] });
     }
   }, [step]);
+
+  useEffect(() => {
+    const shouldPreloadPlanData =
+      step === 3 &&
+      isLoggedIn &&
+      usePlanDegreePage &&
+      Boolean(userPrefs) &&
+      !isLoading &&
+      planDegreeData.requiredCourses.length === 0 &&
+      planDegreeData.electiveCourses.length === 0;
+
+    if (shouldPreloadPlanData) {
+      fetchPlanDegreeData();
+    }
+  }, [step, isLoggedIn, userPrefs, isLoading, planDegreeData.requiredCourses.length, planDegreeData.electiveCourses.length]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -127,6 +143,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
 
       if (response.ok && data.courses) {
         setCompletedCourses(data.courses);
+        setInProgressCourses(data.inProgressCourses || []);
         setStep(2);
       } else {
         alert(data.error || 'Error parsing transcript.');
@@ -149,6 +166,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
 
     const formData = new FormData();
     formData.append('completed_courses', JSON.stringify(completedCourses));
+    formData.append('in_progress_courses', JSON.stringify(inProgressCourses));
     formData.append('department', department);
     formData.append('preferences', JSON.stringify(preferences));
 
@@ -192,6 +210,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           completed_courses: completedCourses,
+          in_progress_courses: inProgressCourses,
           department,
           credits_per_semester: creditsPerSemester,
           selected_next_semester: selectedCourses,
@@ -211,6 +230,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
           try {
             localStorage.setItem(STORAGE_KEY(googleUser.email), JSON.stringify({
               completedCourses,
+              inProgressCourses,
               department,
               degreePlan: data,
             }));
@@ -240,7 +260,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
       plan.season,
       parseInt(plan.year),
       plan.includeSummer,
-      [] // No pre-selected electives in the new UI flow
+      plan.chosenElectiveIds
     );
   };
 
@@ -253,6 +273,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           completed_courses: completedCourses,
+          in_progress_courses: inProgressCourses,
           department,
           credits_per_semester: 15, // Default value for initial fetch
         }),
@@ -285,6 +306,8 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
           creditHours: c.creditHours,
           missingPrereqs: c.missingPrereqs || [],
           group: groupLookup[c.code] || undefined,
+          isEligible: c.isEligible ?? (c.missingPrereqs || []).length === 0,
+          ...(c.taken ? { taken: true } : {}),
         }));
 
         // Preserve elective groups with hour requirements from API
@@ -299,6 +322,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
             creditHours: c.creditHours,
             missingPrereqs: c.missingPrereqs || [],
             group: g.group,
+            isEligible: c.isEligible ?? (c.missingPrereqs || []).length === 0,
             ...(c.taken ? { taken: true } : {}),
           })),
         }));
@@ -345,6 +369,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
     setGoogleUser(null);
     setDegreePlan(null);
     setCompletedCourses([]);
+    setInProgressCourses([]);
     setFile(null);
     setUserPrefs(null);
   };
@@ -357,6 +382,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
     setGoogleUser(null);
     setDegreePlan(null);
     setCompletedCourses([]);
+    setInProgressCourses([]);
     setFile(null);
     setUserPrefs(null);
   };
@@ -371,6 +397,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
     setIsReturningUser(false);
     setDegreePlan(null);
     setCompletedCourses([]);
+    setInProgressCourses([]);
     setFile(null);
     setUserPrefs(null);
     setStep(1);
@@ -391,6 +418,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
           // Validate that saved plan data is usable
           if (saved.degreePlan && Array.isArray(saved.degreePlan.plan) && saved.degreePlan.stats) {
             setCompletedCourses(saved.completedCourses || []);
+            setInProgressCourses(saved.inProgressCourses || []);
             setDepartment(saved.department || '');
             setDegreePlan(saved.degreePlan);
             setGoogleUser(user);
@@ -439,15 +467,15 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
   }
 
   if (step === 1) return (
-    <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined} fullViewport>
-      <UploadScreen
+      <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined} fullViewport>
+        <UploadScreen
         file={file}
         department={department}
         onFileChange={handleFileChange}
         onClearFile={() => setFile(null)}
         setDepartment={setDepartment}
         onNext={handleUploadAndParse}
-        onSkipTranscript={() => { setCompletedCourses([]); setStep(3); }}
+        onSkipTranscript={() => { setCompletedCourses([]); setInProgressCourses([]); setStep(3); }}
         onBack={() => { if (enteredViaOverlay) { setEnteredViaOverlay(false); setStep(0); setShowLogin(true); } else { setStep(0); } }}
         isLoading={isLoading}
       />
@@ -456,7 +484,12 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
 
   if (step === 2) return (
     <Layout onLogoClick={handleLogoClick} user={isLoggedIn ? googleUser : undefined} onSignOut={isLoggedIn ? handleSignOut : undefined} fullViewport>
-      <TranscriptReview courses={completedCourses} onNext={() => setStep(3)} onBack={() => setStep(1)} />
+      <TranscriptReview
+        courses={completedCourses}
+        inProgressCourses={inProgressCourses}
+        onNext={() => setStep(3)}
+        onBack={() => setStep(1)}
+      />
     </Layout>
   );
 
@@ -468,7 +501,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
         return (
           <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut} fullViewport>
             <ProfessorPreferencesOnboarding
-              onBack={() => setStep(2)}
+              onBack={() => setStep(completedCourses.length > 0 || inProgressCourses.length > 0 ? 2 : 1)}
               onComplete={(p, l, a) => setUserPrefs(onboardingSelectionsToPreferences(p, l, a))}
             />
           </Layout>
@@ -477,11 +510,6 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
       
       // Use new PlanDegreePage UI if enabled
       if (usePlanDegreePage) {
-        const hasData = planDegreeData.requiredCourses.length > 0 || planDegreeData.electiveCourses.length > 0;
-        if (!hasData && !isLoading) {
-          fetchPlanDegreeData();
-        }
-        
         return (
           <>
             <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut}>
@@ -510,6 +538,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
         <Layout onLogoClick={handleLogoClick} user={googleUser} onSignOut={handleSignOut}>
           <DegreePlanSetup
             completedCourses={completedCourses}
+            inProgressCourses={inProgressCourses}
             department={department}
             onPlanGenerated={handleGenerateDegreePlan}
             isLoading={isLoading}
@@ -521,7 +550,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
     return (
       <Layout onLogoClick={handleLogoClick} fullViewport>
         <ProfessorPreferencesOnboarding
-          onBack={() => setStep(2)}
+          onBack={() => setStep(completedCourses.length > 0 || inProgressCourses.length > 0 ? 2 : 1)}
           onComplete={(p, l, a) => handleGenerate(onboardingSelectionsToPreferences(p, l, a))}
         />
         <ProcessingOverlay

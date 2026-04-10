@@ -12,6 +12,8 @@ export interface Course {
 export interface ElectiveCourse extends Course {
   missingPrereqs: string[];
   group?: string;
+  isEligible?: boolean;
+  taken?: boolean;
 }
 
 export interface ElectiveGroup {
@@ -33,6 +35,7 @@ export interface Student {
 
 export interface DegreePlan {
   selectedCourseIds: string[];
+  chosenElectiveIds: string[];
   season: 'Fall' | 'Spring' | 'Summer';
   year: string;
   maxHoursPerSemester: number;

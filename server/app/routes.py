@@ -22,8 +22,9 @@ from .scripts.recommendation_engine import (
     expand_completed_with_prereqs,
     _build_global_course_map,
     _is_prereq_met,
+    elective_group_label,
 )
-from .scripts.parse_transcript import extract_all_courses
+from .scripts.parse_transcript import extract_all_courses, extract_courses_by_status
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -310,20 +311,23 @@ def parse_transcript():
         temp_path = os.path.join(temp_dir, safe_name)
         file.save(temp_path)
 
-        courses = extract_all_courses(temp_path)
-        print(f"  → Extracted {len(courses)} courses: {courses[:15]}{'...' if len(courses) > 15 else ''}", file=sys.stderr)
+        result = extract_courses_by_status(temp_path)
+        courses = result['completed']
+        in_progress = result['in_progress']
+        print(f"  → Extracted {len(courses)} completed + {len(in_progress)} in-progress: {courses[:10]}{'...' if len(courses) > 10 else ''}", file=sys.stderr)
 
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-        if not courses:
+        if not courses and not in_progress:
             return jsonify({
                 'success': True,
                 'courses': [],
+                'inProgressCourses': [],
                 'warning': 'No courses were found. Make sure this is a text-based unofficial transcript from MyMav (not a scanned image).'
             }), 200
 
-        return jsonify({'success': True, 'courses': courses}), 200
+        return jsonify({'success': True, 'courses': courses, 'inProgressCourses': in_progress}), 200
 
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
@@ -359,6 +363,15 @@ def get_recommendations():
                 completed_courses = extract_all_courses(temp_path)
                 if os.path.exists(temp_path): os.remove(temp_path)
 
+        # 1b. GET IN-PROGRESS COURSES
+        in_progress_courses = []
+        raw_ip = request.form.get('in_progress_courses', '[]')
+        try:
+            if raw_ip and raw_ip != 'undefined':
+                in_progress_courses = json.loads(raw_ip)
+        except:
+            print("Error parsing in_progress_courses JSON", file=sys.stderr)
+
         # 2. GET PREFERENCES
         user_prefs = {}
         try:
@@ -371,7 +384,7 @@ def get_recommendations():
         all_courses = get_department_courses(department)
         if not all_courses:
             return jsonify({'error': f'No course data found for department "{department}". Please select a valid degree.'}), 400
-        eligible = filter_eligible_courses_unique(all_courses, completed_courses)
+        eligible = filter_eligible_courses_unique(all_courses, completed_courses, in_progress_courses)
 
         result = []
         for code, course in eligible.items():
@@ -465,7 +478,7 @@ def get_recommendations():
                 'courseName': course['course_name'],
                 'creditHours': course.get('credit_hours', 3),
                 'corequisites': coreqs if coreqs and coreqs.lower() != 'none' else '',
-                'professors': professors_list
+                'professors': professors_list,
             }
             # Tag with requirement type and elective group for partitioning
             entry['_requirement'] = course.get('requirement_type', 'required')
@@ -480,6 +493,7 @@ def get_recommendations():
             elective_group = r.pop('_elective_group', None)
             if req_type == 'elective':
                 r['electiveGroup'] = elective_group
+                r['electiveLabel'] = elective_group_label(elective_group)
                 electives.append(r)
             else:
                 required.append(r)
@@ -585,6 +599,7 @@ def degree_plan():
         include_summer = bool(data.get('include_summer', False))
         user_preferences = data.get('preferences', {})
         chosen_electives = data.get('chosen_electives', None)
+        in_progress_courses = data.get('in_progress_courses', [])
 
         if not department:
             return jsonify({'error': 'Department is required'}), 400
@@ -592,7 +607,7 @@ def degree_plan():
         all_courses = get_department_courses(department)
         if not all_courses:
             return jsonify({'error': f'No course data found for department "{department}". Please select a valid degree.'}), 400
-        semesters = generate_degree_plan(
+        semesters, planner_warnings = generate_degree_plan(
             all_courses,
             completed_courses,
             credits_per_semester,
@@ -601,6 +616,7 @@ def degree_plan():
             start_year=start_year,
             include_summer=include_summer,
             chosen_electives=chosen_electives,
+            in_progress_courses=in_progress_courses,
         )
 
         # Enrich each course in the plan with top-3 professor data
@@ -614,7 +630,7 @@ def degree_plan():
         total_remaining_hours = sum(s['totalHours'] for s in semesters)
 
         # Eligible courses for the frontend course picker
-        eligible = filter_eligible_courses_unique(all_courses, completed_courses)
+        eligible = filter_eligible_courses_unique(all_courses, completed_courses, in_progress_courses)
         eligible_list = []
         for code, course in eligible.items():
             req_type = course.get('requirement_type', 'required')
@@ -629,6 +645,7 @@ def degree_plan():
                 'creditHours': hrs,
                 'requirement': req_type,
                 'electiveGroup': course.get('elective_group'),
+                'electiveLabel': elective_group_label(course.get('elective_group')) if req_type == 'elective' else None,
             })
 
         # Sort: required first, then by code
@@ -697,7 +714,8 @@ def degree_plan():
         degree_map = {normalize_code(c['course_id']): c for c in all_courses}
         global_map = _build_global_course_map()
         merged_map = {**global_map, **degree_map}
-        expanded_completed = expand_completed_with_prereqs(set(normalized_completed), merged_map)
+        normalized_in_progress = set(normalize_code(c) for c in in_progress_courses)
+        expanded_completed = expand_completed_with_prereqs(set(normalized_completed) | normalized_in_progress, merged_map)
 
         def _missing_prereqs(course_row):
             prereq_list = parse_prereq_string(course_row.get('pre_requisites', '') or '')
@@ -717,6 +735,7 @@ def degree_plan():
             if group not in elective_by_group:
                 elective_by_group[group] = {
                     'group': group,
+                    'label': elective_group_label(group),
                     'hoursRequired': c.get('elective_hours') or 0,
                     'hoursCompleted': 0,
                     'courses': [],
@@ -730,11 +749,13 @@ def degree_plan():
             is_taken = code in normalized_completed
             if is_taken:
                 elective_by_group[group]['hoursCompleted'] += hrs
+            missing_prereqs = _missing_prereqs(c)
             elective_by_group[group]['courses'].append({
                 'code': code,
                 'name': c.get('course_name', ''),
                 'creditHours': hrs,
-                'missingPrereqs': _missing_prereqs(c),
+                'missingPrereqs': missing_prereqs,
+                'isEligible': len(missing_prereqs) == 0 and not is_taken,
                 **(({'taken': True}) if is_taken else {}),
             })
         elective_groups = sorted(elective_by_group.values(), key=lambda x: x['group'])
@@ -757,6 +778,7 @@ def degree_plan():
             'allElectives': [c for g in elective_groups for c in g['courses'] if not c.get('taken')],
             'electiveGroups': elective_groups,
             'requiredElectiveCount': required_elective_count,
+            'warnings': planner_warnings,
             'stats': {
                 'totalCourses': total_courses_approx,
                 'totalHours': total_hours,
