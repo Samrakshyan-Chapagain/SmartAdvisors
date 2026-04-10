@@ -347,6 +347,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
           ? {
               name: googleUser?.name || 'Student',
               completedCourses: [...completedCourses],
+              completedCourseCount: data.stats.completedCourses || 0,
               completedCreditHours: data.stats.completedHours || 0,
               totalCreditHours: data.stats.totalHours || 0,
               totalCoursesRequired: data.stats.totalCourses || 0,

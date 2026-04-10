@@ -707,8 +707,13 @@ def degree_plan():
 
         # Required courses
         required_courses_list = [c for c in all_courses if c.get('requirement_type', 'required').lower() == 'required']
-        required_total = len(required_courses_list)
-        required_hours = sum(c.get('credit_hours', 3) for c in required_courses_list)
+        unique_required_courses = {}
+        for c in required_courses_list:
+            code = normalize_code(c['course_id'])
+            if code not in unique_required_courses:
+                unique_required_courses[code] = c
+        required_total = len(unique_required_courses)
+        required_hours = sum(c.get('credit_hours', 3) for c in unique_required_courses.values())
 
         # Elective budgets
         elective_budgets = get_elective_budgets(all_courses)
@@ -728,17 +733,21 @@ def degree_plan():
             total_hours = degree_info['total_hours']
 
         # Completed required — only courses in the degree's required list
-        completed_req_count = sum(1 for c in required_courses_list
-            if normalize_code(c['course_id']) in normalized_completed)
-        completed_req_hours = sum(c.get('credit_hours', 3) for c in required_courses_list
-            if normalize_code(c['course_id']) in normalized_completed)
+        completed_req_count = sum(1 for code in unique_required_courses if code in normalized_completed)
+        completed_req_hours = sum(c.get('credit_hours', 3) for code, c in unique_required_courses.items()
+            if code in normalized_completed)
 
         # Completed electives — only electives in the degree's elective list
         elective_courses = [c for c in all_courses if c.get('requirement_type') == 'elective']
+        unique_elective_courses = {}
+        for c in elective_courses:
+            code = normalize_code(c['course_id'])
+            if code not in unique_elective_courses:
+                unique_elective_courses[code] = c
         completed_elective_hours_total = 0
         completed_elective_count = 0
-        for c in elective_courses:
-            if normalize_code(c['course_id']) in normalized_completed:
+        for code, c in unique_elective_courses.items():
+            if code in normalized_completed:
                 completed_elective_hours_total += c.get('credit_hours', 3)
                 completed_elective_count += 1
 
@@ -756,7 +765,7 @@ def degree_plan():
                     cat_completed += cc_course.get('course_hours', 3)
             completed_core_hours += min(cat_completed, cat_info['hours_required'])
 
-        completed_count = completed_req_count + completed_elective_count
+        completed_count = min(total_courses_approx, completed_req_count + completed_elective_count)
         completed_hours = completed_req_hours + completed_elective_hours_total + completed_core_hours
 
         # Prereq expansion (same as filter_eligible_courses_unique) for missingPrereqs on electives

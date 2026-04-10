@@ -39,6 +39,10 @@ function isSelectableElective(c: ElectiveCourse): boolean {
   return c.missingPrereqs.length === 0;
 }
 
+function isWishlistedElective(c: ElectiveCourse, wishlist: Set<string>): boolean {
+  return wishlist.has(c.id) && isSelectableElective(c);
+}
+
 function initialYearDefault(): string {
   return String(new Date().getFullYear() + 1);
 }
@@ -177,18 +181,21 @@ export default function PlanDegreePage({
     return out;
   }, [wishlist, electiveCourses]);
 
-  const sortedElectives = useMemo(() => {
-    const topIds = new Set(eligibleWished.map((c) => c.id));
-    const top = eligibleWished.slice();
-    const rest = electiveCourses.filter((c) => !topIds.has(c.id));
-    return [...top, ...rest];
-  }, [eligibleWished, electiveCourses]);
+  const eligibleWishlistedElectives = useMemo(
+    () => electiveCourses.filter((c) => isWishlistedElective(c, wishlist)),
+    [electiveCourses, wishlist]
+  );
 
   const showSkeleton = loading || (!student && requiredCourses.length === 0 && electiveCourses.length === 0);
 
   const tryToggleCourse = useCallback(
     (course: Course | ElectiveCourse) => {
       if ('missingPrereqs' in course && !isSelectableElective(course)) {
+        setShakeTarget(course.id);
+        setShakeTick((x) => x + 1);
+        return;
+      }
+      if ('missingPrereqs' in course && !wishlist.has(course.id)) {
         setShakeTarget(course.id);
         setShakeTick((x) => x + 1);
         return;
@@ -220,8 +227,16 @@ export default function PlanDegreePage({
   const toggleWishlist = useCallback((id: string) => {
     setWishlist((prev) => {
       const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
+      if (n.has(id)) {
+        n.delete(id);
+        setSelected((selectedPrev) => {
+          const nextSelected = new Set(selectedPrev);
+          nextSelected.delete(id);
+          return nextSelected;
+        });
+      } else {
+        n.add(id);
+      }
       return n;
     });
   }, []);
@@ -333,7 +348,7 @@ export default function PlanDegreePage({
               <>
                 <StatMini
                   label="Courses Done"
-                  value={`${student.completedCourses.length} / ${student.totalCoursesRequired}`}
+                  value={`${Math.min(student.completedCourseCount ?? student.completedCourses.length, student.totalCoursesRequired)} / ${student.totalCoursesRequired}`}
                   accent="var(--blue)"
                 />
                 <StatMini
@@ -759,7 +774,7 @@ export default function PlanDegreePage({
               </h2>
               <p className="text-xs text-[var(--t2)]">Eligible courses from your degree plan</p>
             </div>
-            {showSkeleton ? (
+                  {showSkeleton ? (
               <div className="flex-1 space-y-2 p-3">
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--s2)]" />
@@ -837,17 +852,17 @@ export default function PlanDegreePage({
                         ))}
                       </ul>
                     )
-                  ) : sortedElectives.length === 0 ? (
+                  ) : eligibleWishlistedElectives.length === 0 ? (
                     <p className="py-8 text-center text-sm text-[var(--t2)]">
-                      No elective courses available for this semester.
+                      Add eligible electives to your wishlist to make them selectable for next semester.
                     </p>
                   ) : (
                     <div className="space-y-4">
                       {(() => {
-                        // Group electives by their group
+                        // Group wishlisted, eligible electives by their group
                         const groupOrder = electiveGroups.map((g) => g.group);
-                        const grouped: Record<string, typeof sortedElectives> = {};
-                        for (const c of sortedElectives) {
+                        const grouped: Record<string, typeof eligibleWishlistedElectives> = {};
+                        for (const c of eligibleWishlistedElectives) {
                           const g = (c as any).group || 'other';
                           (grouped[g] ??= []).push(c);
                         }
@@ -860,7 +875,7 @@ export default function PlanDegreePage({
                         if (sortedGroups.length <= 1 && !electiveGroups.length) {
                           return (
                             <ul className="space-y-2">
-                              {sortedElectives.map((c) => {
+                              {eligibleWishlistedElectives.map((c) => {
                                 const wish = wishlist.has(c.id);
                                 const eligible = isSelectableElective(c);
                                 return (

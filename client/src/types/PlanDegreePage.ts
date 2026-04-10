@@ -28,6 +28,7 @@ export interface ElectiveGroup {
 export interface Student {
   name: string;
   completedCourses: string[];
+  completedCourseCount?: number;
   completedCreditHours: number;
   totalCreditHours: number;
   totalCoursesRequired: number;
