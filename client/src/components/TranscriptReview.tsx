@@ -85,9 +85,9 @@ export default function TranscriptReview({ courses, inProgressCourses = [], onNe
             </div>
           </div>
 
-          <div className="flex flex-col justify-center min-h-0 overflow-hidden px-12 py-8">
-            <div className="w-full max-w-[520px] mx-auto flex flex-col gap-6">
-              <div className="pb-1 border-b" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex flex-col min-h-0 px-12 py-8">
+            <div className="w-full max-w-[520px] mx-auto flex flex-col min-h-0 h-full gap-6">
+              <div className="pb-1 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
                 <h3 className="font-heading font-bold text-xl tracking-[-0.3px] text-[var(--text)]">Transcript verified</h3>
                 <p className="text-[var(--sub)] mt-1 text-[15px]">
                   <span className="font-semibold text-[var(--blue)]">{courses.length} completed</span>
@@ -95,69 +95,75 @@ export default function TranscriptReview({ courses, inProgressCourses = [], onNe
                 </p>
               </div>
 
-              <div className="flex flex-col min-h-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sub)] mb-4">Completed courses</p>
-                {courses.length > 0 ? (
-                  <div className="flex flex-col gap-5 overflow-y-auto scrollbar-themed pr-1 max-h-[320px]">
-                    {groups.map(({ dept, courses: deptCourses }) => (
-                      <div key={dept} className="flex flex-col gap-2">
-                        <span className="text-[12px] font-semibold text-[var(--blue)]">{dept} ({deptCourses.length})</span>
-                        <div className="flex flex-wrap gap-2">
-                          {deptCourses.map((course) => (
-                            <span
-                              key={course}
-                              className="py-1.5 px-2.5 rounded-lg text-[13px] font-medium text-[var(--text)]"
-                              style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)' }}
-                            >
-                              {course}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[var(--sub)] text-sm italic">No courses found.</p>
-                )}
-
-                {inProgressCourses.length > 0 && (
-                  <div className="mt-6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sub)] mb-4">In progress</p>
-                    <div className="flex flex-col gap-5 overflow-y-auto scrollbar-themed pr-1 max-h-[200px]">
-                      {inProgressGroups.map(({ dept, courses: deptCourses }) => (
-                        <div key={dept} className="flex flex-col gap-2">
-                          <span className="text-[12px] font-semibold text-[var(--orange)]">{dept} ({deptCourses.length})</span>
-                          <div className="flex flex-wrap gap-2">
-                            {deptCourses.map((course) => (
-                              <span
-                                key={course}
-                                className="py-1.5 px-2.5 rounded-lg text-[13px] font-medium text-[var(--text)]"
-                                style={{ background: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.18)' }}
-                              >
-                                {course}
-                              </span>
-                            ))}
+              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-themed pr-2 pb-2">
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sub)] mb-4">Completed courses</p>
+                    {courses.length > 0 ? (
+                      <div className="flex flex-col gap-5">
+                        {groups.map(({ dept, courses: deptCourses }) => (
+                          <div key={dept} className="flex flex-col gap-2">
+                            <span className="text-[12px] font-semibold text-[var(--blue)]">{dept} ({deptCourses.length})</span>
+                            <div className="flex flex-wrap gap-2">
+                              {deptCourses.map((course) => (
+                                <span
+                                  key={course}
+                                  className="py-1.5 px-2.5 rounded-lg text-[13px] font-medium text-[var(--text)]"
+                                  style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)' }}
+                                >
+                                  {course}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[var(--sub)] text-sm italic">No courses found.</p>
+                    )}
                   </div>
-                )}
+
+                  {inProgressCourses.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sub)] mb-4">In progress</p>
+                      <div className="flex flex-col gap-5">
+                        {inProgressGroups.map(({ dept, courses: deptCourses }) => (
+                          <div key={dept} className="flex flex-col gap-2">
+                            <span className="text-[12px] font-semibold text-[var(--orange)]">{dept} ({deptCourses.length})</span>
+                            <div className="flex flex-wrap gap-2">
+                              {deptCourses.map((course) => (
+                                <span
+                                  key={course}
+                                  className="py-1.5 px-2.5 rounded-lg text-[13px] font-medium text-[var(--text)]"
+                                  style={{ background: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.18)' }}
+                                >
+                                  {course}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={onNext}
-                className="relative w-full py-3.5 rounded-xl font-heading font-bold text-[15px] tracking-[-0.3px] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] group overflow-hidden hover:-translate-y-0.5 hover:opacity-[0.98]"
-                style={{
-                  background: 'linear-gradient(135deg, var(--blue), var(--blue2), var(--orange2))',
-                  boxShadow: '0 4px 28px rgba(91,124,250,0.25), 0 2px 12px rgba(255,107,53,0.15)',
-                }}
-              >
-                <span className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.1), transparent 60%)' }} />
-                <span className="relative z-10">Continue to Preferences</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform relative z-10" />
-              </button>
+              <div className="pt-4 shrink-0 sticky bottom-0 -mx-1 pb-1 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)] to-transparent">
+                <button
+                  type="button"
+                  onClick={onNext}
+                  className="relative w-full py-3.5 rounded-xl font-heading font-bold text-[15px] tracking-[-0.3px] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] group overflow-hidden hover:-translate-y-0.5 hover:opacity-[0.98]"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--blue), var(--blue2), var(--orange2))',
+                    boxShadow: '0 4px 28px rgba(91,124,250,0.25), 0 2px 12px rgba(255,107,53,0.15)',
+                  }}
+                >
+                  <span className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.1), transparent 60%)' }} />
+                  <span className="relative z-10">Continue to Preferences</span>
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform relative z-10" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

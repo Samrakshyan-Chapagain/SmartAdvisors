@@ -7,7 +7,7 @@ import ProcessingOverlay from './ProcessingOverlay';
 const ENGINEERING_MAJORS: { name: string; code: string }[] = [
   { name: 'Aerospace Engineering', code: 'MAE' },
   { name: 'Civil Engineering', code: 'CE' },
-  { name: 'Computer Science', code: 'CSE' },
+  { name: 'Computer Science', code: 'CS' },
   { name: 'Electrical Engineering', code: 'EE' },
   { name: 'Industrial Engineering', code: 'IE' },
   { name: 'Mechanical Engineering', code: 'MAE' },
