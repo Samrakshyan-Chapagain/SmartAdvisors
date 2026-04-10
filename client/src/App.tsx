@@ -56,6 +56,18 @@ interface ApiRecommendationResponse {
 */
 
 function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
+  const emptyPreferences: Preferences = {
+    extraCredit: false,
+    clearGrading: false,
+    goodFeedback: false,
+    caring: false,
+    lectureHeavy: false,
+    groupProjects: false,
+    avoidTestHeavy: false,
+    avoidHomeworkHeavy: false,
+    avoidStrictAttendance: false,
+    avoidPopQuizzes: false,
+  };
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [step, setStep] = useState<number>(0);
   const [showLogin, setShowLogin] = useState(false);
@@ -232,6 +244,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
               completedCourses,
               inProgressCourses,
               department,
+              userPrefs,
               degreePlan: data,
             }));
           } catch {
@@ -290,11 +303,11 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
             creditHours: c.creditHours
           }));
 
-        // Build group lookup from electiveGroups so flat list knows its group
-        const groupLookup: Record<string, string> = {};
+        // Build group lookup from electiveGroups so flat list knows its groups
+        const groupLookup: Record<string, string[]> = {};
         for (const g of (data.electiveGroups || [])) {
           for (const c of (g.courses || [])) {
-            groupLookup[c.code] = g.group;
+            groupLookup[c.code] = [...(groupLookup[c.code] || []), g.group];
           }
         }
 
@@ -305,7 +318,8 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
           name: c.name,
           creditHours: c.creditHours,
           missingPrereqs: c.missingPrereqs || [],
-          group: groupLookup[c.code] || undefined,
+          group: groupLookup[c.code]?.[0] || undefined,
+          groups: groupLookup[c.code] || c.groups || [],
           isEligible: c.isEligible ?? (c.missingPrereqs || []).length === 0,
           ...(c.taken ? { taken: true } : {}),
         }));
@@ -322,6 +336,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
             creditHours: c.creditHours,
             missingPrereqs: c.missingPrereqs || [],
             group: g.group,
+            groups: c.groups || [g.group],
             isEligible: c.isEligible ?? (c.missingPrereqs || []).length === 0,
             ...(c.taken ? { taken: true } : {}),
           })),
@@ -388,6 +403,8 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
   };
 
   const handleEditPlan = () => {
+    setIsReturningUser(false);
+    setUserPrefs((prev) => prev || emptyPreferences);
     setStep(3);
   };
 
@@ -420,6 +437,7 @@ function App({ googleOAuthEnabled = true }: { googleOAuthEnabled?: boolean }) {
             setCompletedCourses(saved.completedCourses || []);
             setInProgressCourses(saved.inProgressCourses || []);
             setDepartment(saved.department || '');
+            setUserPrefs(saved.userPrefs || null);
             setDegreePlan(saved.degreePlan);
             setGoogleUser(user);
             setIsLoggedIn(true);

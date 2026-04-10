@@ -12,6 +12,7 @@ export interface Course {
 export interface ElectiveCourse extends Course {
   missingPrereqs: string[];
   group?: string;
+  groups?: string[];
   isEligible?: boolean;
   taken?: boolean;
 }

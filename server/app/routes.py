@@ -6,6 +6,7 @@ import tempfile
 import sys
 import traceback
 import json
+from typing import Tuple
 
 from app.models import Professor
 
@@ -27,6 +28,54 @@ from .scripts.recommendation_engine import (
 from .scripts.parse_transcript import extract_all_courses, extract_courses_by_status
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+def _elective_group_priority(group_name: str) -> Tuple[int, str]:
+    group = normalize_code(group_name or "").lower()
+    priorities = {
+        'required-technical': 0,
+        'security': 1,
+        'technical': 2,
+    }
+    return priorities.get(group, 10), group
+
+
+def _allocate_elective_hours(unique_courses_by_code, group_hours_required, selected_codes):
+    """
+    Assign each unique elective course to at most one elective group.
+    Used so overlap electives (e.g. security/technical) only satisfy one bucket.
+    """
+    selected = [code for code in sorted(set(selected_codes)) if code in unique_courses_by_code]
+    remaining = {group: max(0, hours) for group, hours in group_hours_required.items()}
+    allocations = {group: 0 for group in group_hours_required}
+    candidate_counts = {group: 0 for group in group_hours_required}
+
+    for course in unique_courses_by_code.values():
+        for group in course.get('groups', []):
+            if group in candidate_counts:
+                candidate_counts[group] += 1
+
+    selected.sort(key=lambda code: (len(unique_courses_by_code[code].get('groups', [])), code))
+
+    for code in selected:
+        course = unique_courses_by_code[code]
+        groups = [g for g in course.get('groups', []) if remaining.get(g, 0) > 0]
+        if not groups:
+            continue
+        chosen_group = min(
+            groups,
+            key=lambda g: (
+                _elective_group_priority(g),
+                candidate_counts.get(g, 999),
+                remaining.get(g, 0),
+                g,
+            ),
+        )
+        hrs = course.get('creditHours', 0)
+        allocations[chosen_group] += hrs
+        remaining[chosen_group] = max(0, remaining[chosen_group] - hrs)
+
+    return allocations
 
 # --- SCORING ALGORITHM ---
 def calculate_match_score(professor_obj, user_prefs):
@@ -726,8 +775,11 @@ def degree_plan():
             return missing
 
         # Build elective groups for frontend (grouped by elective_group)
-        # Includes completed electives marked as taken so the UI can show progress
+        # Includes completed electives marked as taken so the UI can show progress.
+        # Also build a unique elective map so overlap electives only count toward
+        # one requirement bucket at a time.
         elective_by_group = {}
+        unique_electives = {}
         for c in all_courses:
             if c.get('requirement_type') != 'elective':
                 continue
@@ -747,24 +799,51 @@ def degree_plan():
             except (ValueError, TypeError):
                 hrs = 3
             is_taken = code in normalized_completed
-            if is_taken:
-                elective_by_group[group]['hoursCompleted'] += hrs
             missing_prereqs = _missing_prereqs(c)
-            elective_by_group[group]['courses'].append({
+            course_payload = {
                 'code': code,
                 'name': c.get('course_name', ''),
                 'creditHours': hrs,
                 'missingPrereqs': missing_prereqs,
                 'isEligible': len(missing_prereqs) == 0 and not is_taken,
+                'groups': [],
                 **(({'taken': True}) if is_taken else {}),
-            })
+            }
+            elective_by_group[group]['courses'].append(course_payload)
+
+            if code not in unique_electives:
+                unique_electives[code] = {
+                    'code': code,
+                    'name': c.get('course_name', ''),
+                    'creditHours': hrs,
+                    'missingPrereqs': missing_prereqs,
+                    'isEligible': len(missing_prereqs) == 0 and not is_taken,
+                    'groups': [],
+                    **(({'taken': True}) if is_taken else {}),
+                }
+            if group not in unique_electives[code]['groups']:
+                unique_electives[code]['groups'].append(group)
+            if group not in course_payload['groups']:
+                course_payload['groups'].append(group)
+
+        group_hours_required = {
+            group: info['hoursRequired']
+            for group, info in elective_by_group.items()
+        }
+        completed_allocation = _allocate_elective_hours(
+            unique_electives,
+            group_hours_required,
+            {code for code, course in unique_electives.items() if course.get('taken')},
+        )
+        for group, info in elective_by_group.items():
+            info['hoursCompleted'] = completed_allocation.get(group, 0)
         elective_groups = sorted(elective_by_group.values(), key=lambda x: x['group'])
 
         # Required elective count: how many more elective courses needed (accounting for taken)
         required_elective_count = 0
         for group_info in elective_groups:
             hrs_remaining = group_info['hoursRequired'] - group_info.get('hoursCompleted', 0)
-            untaken = [c for c in group_info['courses'] if not c.get('taken')]
+            untaken = {c['code']: c for c in group_info['courses'] if not c.get('taken')}.values()
             if hrs_remaining > 0 and untaken:
                 avg_hrs = sum(c['creditHours'] for c in untaken) / len(untaken)
                 required_elective_count += max(1, round(hrs_remaining / avg_hrs)) if avg_hrs > 0 else 1
@@ -775,7 +854,7 @@ def degree_plan():
             'totalSemesters': len(semesters),
             'totalRemainingHours': total_remaining_hours,
             'eligibleCourses': eligible_list,
-            'allElectives': [c for g in elective_groups for c in g['courses'] if not c.get('taken')],
+            'allElectives': [c for c in sorted(unique_electives.values(), key=lambda row: row['code']) if not c.get('taken')],
             'electiveGroups': elective_groups,
             'requiredElectiveCount': required_elective_count,
             'warnings': planner_warnings,

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import sqlite3
 import csv
 import os
 import argparse
+from pathlib import Path
+import sqlite3
 
-# --- SET YOUR DATABASE PATH HERE ---
-DB_PATH = '/home/aki/Desktop/SmartAdvisors/server/data_new/smart_advisors.db'
+DB_PATH = Path(__file__).resolve().parent / 'smart_advisors.db'
 
 def get_credit_hours(course_id):
     """Extracts credit hours from the second digit of the course number (e.g., CSE 1310 -> 3)."""
@@ -24,7 +24,7 @@ def sync_csv_to_db(csv_filepath):
         print(f"Error: File not found at {csv_filepath}")
         return
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
 
     with open(csv_filepath, 'r', encoding='utf-8') as f:

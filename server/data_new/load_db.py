@@ -1,15 +1,17 @@
-import sqlite3
 import csv
 import os
 import glob
+from pathlib import Path
+import sqlite3
 
 # Configuration
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(BASE_DIR, "smart_advisors.db")
+BASE_DIR = Path(__file__).resolve().parent
+SERVER_DIR = BASE_DIR.parent
+db_path = BASE_DIR / "smart_advisors.db"
 
 print(f"--- Connecting to: {db_path} ---")
 
-csv_folder_path = '/home/aki/Desktop/SmartAdvisors/server/csv_files'
+csv_folder_path = SERVER_DIR / "csv_files"
 
 def get_credit_hours(course_id):
     """Extracts credit hours from the second digit of the course number."""
@@ -22,11 +24,11 @@ def get_credit_hours(course_id):
 
 def process_csv_files():
     # Connect to database
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
     
     # Use glob to find all .csv files in the folder
-    files = glob.glob(os.path.join(csv_folder_path, "*.csv"))
+    files = glob.glob(str(csv_folder_path / "*.csv"))
     
     if not files:
         print(f"No CSV files found in {csv_folder_path}")

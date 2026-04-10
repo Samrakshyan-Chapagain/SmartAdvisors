@@ -1,11 +1,11 @@
-import pandas as pd
-import sqlite3
-department = "CE"
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../data/classes.db')
-    
-db = sqlite3.connect(db_path)
-cur = db.cursor()
+"""Legacy algorithm entrypoint.
 
-cur.execute(f"SELECT * FROM ClassesFor{department}")
-data = cur.fetchall()
-print(data)
+This script used the old `ClassesFor*` tables in `server/data/classes.db`.
+The active app now reads only from `server/data_new/smart_advisors.db` via
+`recommendation_engine.py`.
+"""
+
+raise RuntimeError(
+	"Legacy algorithm.py is disabled. Use app.scripts.recommendation_engine "
+	"and server/data_new/smart_advisors.db instead of the old ClassesFor* data."
+)
